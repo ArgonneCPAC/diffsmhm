@@ -77,9 +77,9 @@ def _distribute_data(data, lbox, lov):
 @pytest.mark.mpi
 def test_wprp_mpi_comp_and_reduce_cpu():
     lbox = 120
-    zmax = 20
+    zmax = 10
     nbins = 10
-    rpmax = 25
+    rpmax = 15
     seed = 42
     npts = 50000
     rbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
@@ -157,9 +157,9 @@ def test_wprp_mpi_comp_and_reduce_cpu():
 )
 def test_wprp_mpi_comp_and_reduce_cuda():
     lbox = 120
-    zmax = 20
+    zmax = 10
     nbins = 10
-    rpmax = 25
+    rpmax = 15
     seed = 42
     rbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
 
