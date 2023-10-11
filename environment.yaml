@@ -1,0 +1,21 @@
+name: test
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - numba
+  - emcee
+  - scipy
+  - tqdm
+  - pyyaml
+  - jax
+  - mpi4py
+  - openmpi
+  - corrfunc
+  - halotools>=0.7
+  - astropy>=4
+  - fast3tree
+  - h5py
+  - mpipartition
+  - psutil
