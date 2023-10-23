@@ -1,7 +1,7 @@
 from numba import cuda
 
 
-@cuda.jit(device=True)
+@cuda.jit(device=True, fastmath=False)
 def tw_cuml_kern_cuda(x, m, h):
     """CDF of the triweight kernel.
 
@@ -35,7 +35,7 @@ def tw_cuml_kern_cuda(x, m, h):
         return val
 
 
-@cuda.jit(device=True)
+@cuda.jit(device=True, fastmath=False)
 def tw_kern_cuda(x, m, h):
     """Triweight kernel.
 
@@ -60,7 +60,7 @@ def tw_kern_cuda(x, m, h):
         return 35 / 96 * (1 - (z / 3) ** 2) ** 3 / h
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def tw_kern_mstar_bin_weights_and_derivs_cuda(
     log10mstar, log10mstar_jac, sigma, sigma_jac, log10mstar_low, log10mstar_high,
     w, w_jac,

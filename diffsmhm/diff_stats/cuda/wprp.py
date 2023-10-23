@@ -5,7 +5,7 @@ from diffsmhm.diff_stats.mpi.types import WprpMPIData
 from diffsmhm.diff_stats.cpu.wprp_utils import compute_rr_rrgrad_eff
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum_nomask(w, res, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -18,7 +18,7 @@ def _sum_nomask(w, res, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum2_nomask(w, res, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -31,7 +31,7 @@ def _sum2_nomask(w, res, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum_prod_nomask(w1, w2, res, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -44,7 +44,7 @@ def _sum_prod_nomask(w1, w2, res, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum_prod_at_ind_nomask(w1, w2, res, atind, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -57,7 +57,7 @@ def _sum_prod_at_ind_nomask(w1, w2, res, atind, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum_at_ind_nomask(w1, w2, res, atind, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -70,7 +70,7 @@ def _sum_at_ind_nomask(w1, w2, res, atind, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _count_weighted_pairs_rppi_with_derivs_periodic_cuda(
     x1, y1, z1, w1, dw1, rpbins_squared, n_pi, result, result_grad,
     boxsize, boxsize_2,
@@ -257,7 +257,7 @@ def wprp_serial_cuda(
     return wprp, wprp_grad
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum_mask(w, mask, res, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -270,7 +270,7 @@ def _sum_mask(w, mask, res, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum2_mask(w, mask, res, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -283,7 +283,7 @@ def _sum2_mask(w, mask, res, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum_prod_mask(w1, w2, mask, res, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -296,7 +296,7 @@ def _sum_prod_mask(w1, w2, mask, res, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum_prod_at_ind_mask(w1, w2, mask, res, atind, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -309,7 +309,7 @@ def _sum_prod_at_ind_mask(w1, w2, mask, res, atind, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _sum_at_ind_mask(w1, w2, mask, res, atind, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -322,7 +322,7 @@ def _sum_at_ind_mask(w1, w2, mask, res, atind, ind):
     cuda.atomic.add(res, ind, tot)
 
 
-@cuda.jit
+@cuda.jit(fastmath=False)
 def _count_weighted_pairs_rppi_with_derivs_cuda(
     x1, y1, z1, w1, dw1, inside_subvol, rpbins_squared, n_pi, result,
     result_grad,
