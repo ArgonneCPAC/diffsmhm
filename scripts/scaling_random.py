@@ -24,7 +24,6 @@ from diffsmhm.utils import time_step
 
 
 def _distribute_data(data, lbox, partition):
-    partition = mpipartition.Partition()
     data = mpipartition.distribute(partition, lbox, data, ["x", "y", "z"])
     data["rank"] = np.zeros_like(data["x"], dtype=np.int32) + RANK
 
