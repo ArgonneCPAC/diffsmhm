@@ -108,7 +108,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     """
     # note these are different from load_and_chop
     important_keys = ["halo_id", "upid", "pid", "mpeak", "x", "y", "z",
-                        "host_x", "host_y", "host_z", "host_dist", "rvir"]
+                      "host_x", "host_y", "host_z", "host_dist", "rvir"]
 
     # load hdf5 data
     halos = OrderedDict()
@@ -150,22 +150,23 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     upid_corr_rank = np.copy(halos["upid"][pid_hosts_indices_rank])
 
     # determine and assign new upids for "pid hosts"
-    for i,host in enumerate(pid_hosts_rank):
+    for i, host in enumerate(pid_hosts_rank):
         mask_this_host = halos["halo_id"] == host
 
         # get all subs that have this host as their pid
         subs_this_pid = halos["halo_id"][halos["pid"] == host]
 
         # get all upids of host's subs
-        upids_poss=np.unique(halos["upid"][np.isin(halos["halo_id"],subs_this_pid)])
+        upids_poss = np.unique(halos["upid"][np.isin(halos["halo_id"], subs_this_pid)])
         # remove any subs from the upid list (otherwise can get looping)
         upids_poss = np.setdiff1d(upids_poss, subs_this_pid)
         # remove host from the upid list (otherwise can get looping)
         upids_poss = np.setdiff1d(upids_poss, host)
-        if len(upids_poss)==0: continue
+        if len(upids_poss) == 0: 
+            continue
 
         # get most massive upid in upids_poss
-        upid_masses = halos["mpeak"][np.isin(halos["halo_id"],upids_poss)]
+        upid_masses = halos["mpeak"][np.isin(halos["halo_id"], upids_poss)]
         if np.max(upid_masses) > halos["mpeak"][mask_this_host][0]:
             upid_corr_rank[i] = upids_poss[np.argmax(upid_masses)]
 
@@ -191,23 +192,23 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     sub_indices_rank = sub_indices[displ:displ+rank_count]
 
     # copy fields bc many halos will not be changed
-    mmhid_rank = np.copy(upid_corr_all[sub_indices_rank]) 
+    mmhid_rank = np.copy(upid_corr_all[sub_indices_rank])
     mmh_x = np.copy(halos["host_x"][sub_indices_rank])
     mmh_y = np.copy(halos["host_y"][sub_indices_rank])
     mmh_z = np.copy(halos["host_z"][sub_indices_rank])
 
     subs_rank = halos["halo_id"][sub_indices_rank]
 
-    # iterate 
-    for i,sub in enumerate(subs_rank):
+    # iterate
+    for i, sub in enumerate(subs_rank):
         current_upid = mmhid_rank[i]
-        next_upid = upid_corr_all[halos["halo_id"]==current_upid][0]
+        next_upid = upid_corr_all[halos["halo_id"] == current_upid][0]
 
         visited_upids = [current_upid]
 
         while next_upid != -1:
-            # update this sub's mmh 
-            mmhid_rank[i] = next_upid 
+            # update this sub's mmh
+            mmhid_rank[i] = next_upid
 
             # check for loop
             if next_upid in visited_upids:
@@ -217,12 +218,12 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
 
             # get next upid
             current_upid = next_upid
-            next_upid = upid_corr_all[halos["halo_id"]==current_upid][0]
+            next_upid = upid_corr_all[halos["halo_id"] == current_upid][0]
 
         # update mmh_x/y/z
-        mmh_x[i] = halos["x"][halos["halo_id"]==current_upid][0]
-        mmh_y[i] = halos["y"][halos["halo_id"]==current_upid][0]
-        mmh_z[i] = halos["z"][halos["halo_id"]==current_upid][0]
+        mmh_x[i] = halos["x"][halos["halo_id"] == current_upid][0]
+        mmh_y[i] = halos["y"][halos["halo_id"] == current_upid][0]
+        mmh_z[i] = halos["z"][halos["halo_id"] == current_upid][0]
 
     # gather info for all subs
     # mmhid
@@ -232,7 +233,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
 
     mmhid_all[sub_indices] = mmhid_allsubs
 
-    # mmh_x/y/z 
+    # mmh_x/y/z
     mmh_x_allsubs = np.empty(len(sub_indices), dtype="f4")
     mmh_y_allsubs = np.empty(len(sub_indices), dtype="f4")
     mmh_z_allsubs = np.empty(len(sub_indices), dtype="f4")
@@ -249,11 +250,11 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     mmh_y_all[sub_indices] = mmh_y_allsubs
     mmh_z_all[sub_indices] = mmh_z_allsubs
 
-    # calc distance to mmh 
+    # calc distance to mmh
     mmh_dist_rank = np.sqrt(
-        np.power(mmh_x-halos["x"][sub_indices_rank],2)
-        + np.power(mmh_y-halos["y"][sub_indices_rank],2)
-        + np.power(mmh_z-halos["z"][sub_indices_rank],2)
+        np.power(mmh_x-halos["x"][sub_indices_rank], 2)
+        + np.power(mmh_y-halos["y"][sub_indices_rank], 2)
+        + np.power(mmh_z-halos["z"][sub_indices_rank], 2)
     )
 
     # mmh_dist
@@ -263,21 +264,28 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
 
     mmh_dist_all[sub_indices] = mmh_dist_allsubs
 
-    # rank 0 write to file 
+    # rank 0 write to file
     if RANK == 0 and export:
         # write to file
         with h5py.File(halo_file, "a") as f:
-            if "mmhid" in f.keys(): del f["mmhid"]
+            if "mmhid" in f.keys(): 
+                del f["mmhid"]
             f.create_dataset("mmhid", data=mmhid_all, dtype="i8")
 
-            if "mmh_x" in f.keys(): del f["mmh_x"]
+            if "mmh_x" in f.keys(): 
+                del f["mmh_x"]
             f.create_dataset("mmh_x", data=mmh_x_all, dtype="f4")
-            if "mmh_y" in f.keys(): del f["mmh_y"]
+
+            if "mmh_y" in f.keys(): 
+                del f["mmh_y"]
             f.create_dataset("mmh_y", data=mmh_y_all, dtype="f4")
-            if "mmh_z" in f.keys(): del f["mmh_z"]
+
+            if "mmh_z" in f.keys():
+                 del f["mmh_z"]
             f.create_dataset("mmh_z", data=mmh_z_all, dtype="f4")
 
-            if "mmh_dist" in f.keys(): del f["mmh_dist"]
+            if "mmh_dist" in f.keys():
+                 del f["mmh_dist"]
             f.create_dataset("mmh_dist", data=mmh_dist_all, dtype="f4")
 
     return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
