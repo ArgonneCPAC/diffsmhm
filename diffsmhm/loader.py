@@ -320,21 +320,23 @@ def load_and_chop_data_bolshoi_planck(
 	"""
 
 	## HALO FILE
+
+	important_keys = [
+		"x", "y", "z", "vx", "vy", "vz",
+		"upid", "halo_id", 
+		"mpeak", "host_mpeak",
+		"vmax_frac",
+		"host_x", "host_y", "host_z", "host_dist",
+		"mmhid", "mmh_x", "mmh_y", "mmh_z"
+	]
+
 	# load in the halo file and make optional host mpeak cut 
 	halos = OrderedDict()
 	with h5py.File(halo_file, "r") as hdf:
 		_host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
 		for key in hdf.keys():
 			# only keep columns we want
-			if key not in [
-				"x", "y", "z",
-				"vx", "vy", "vz",
-				"upid", "halo_id",
-				"mpeak", "host_mpeak",
-				"vmax_frac", 
-				"host_x", "host_y", "host_z", "host_dist",
-				"mmhid", "mmh_x", "mmh_y", "mmh_z"
-			]:
+			if key not in important_keys:
 				continue
 
 			# integer dtypes
@@ -355,14 +357,9 @@ def load_and_chop_data_bolshoi_planck(
 		halos["mmh_z"] = mmh_z
 
 	assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
-	_munge_halos(halos)
-
-	# fix "out of bounds" halos using periodicty
-	for pos in ["halo_x","halo_y","halo_z", "mmh_x", "mmh_y", "mmh_z"]:
-		halos[pos][halos[pos]<0] += box_length
-		halos[pos][halos[pos]>box_length] -= box_length 
 
 	# assign each rank a chunk to then distribute and overload
+	# this is easier than only rank 0 loading for when we need to find mmh
 	avg, rem = divmod(len(halos["halo_id"]), N_RANKS)
 	rank_count = [avg + 1 if p < rem else avg for p in range(N_RANKS)]
 	displ = [sum(rank_count[:p]) for p in range(N_RANKS)]
@@ -373,6 +370,14 @@ def load_and_chop_data_bolshoi_planck(
 	halos_rank = {}
 	for key in halos.keys():
 		halos_rank[key] = halos[key][displ:displ+rank_count]
+
+	# munge
+	_munge_halos(halos_rank)
+
+	# fix "out of bounds" halos using periodicty
+	for pos in ["halo_x","halo_y","halo_z", "mmh_x", "mmh_y", "mmh_z"]:
+		halos_rank[pos][halos_rank[pos]<0] += box_length
+		halos_rank[pos][halos_rank[pos]>box_length] -= box_length 
 
 	# use MPIPartition to distribute and overload
 	partition = mpipartition.Partition()
