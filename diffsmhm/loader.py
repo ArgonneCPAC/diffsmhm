@@ -396,7 +396,7 @@ def load_and_chop_data_bolshoi_planck(
                                        buff_wprp,
                                        ["halo_x", "halo_y", "halo_z"],
                                        structure_key="mmhid"
-    )
+                                       )
 
     halos_rank["_inside_subvol"] = halos_rank["rank"] == RANK
 
