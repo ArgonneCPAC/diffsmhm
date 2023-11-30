@@ -346,9 +346,9 @@ def load_and_chop_data_bolshoi_planck(
     # if mmhid not known, find it
     if "mmhid" not in halos.keys():
 
-        mmhid,
-        mmh_x, mmh_y, mmh_z, 
-        mmh_dist = find_and_write_most_massive_halos(halo_file, export=False)
+        mmhid, \
+        mmh_x, mmh_y, mmh_z, \
+        _ = find_and_write_most_massive_halos(halo_file, export=False)
 
         halos["mmhid"] = mmhid
 
@@ -377,13 +377,13 @@ def load_and_chop_data_bolshoi_planck(
     # fix "out of bounds" halos using periodicty
     for pos in ["halo_x", "halo_y", "halo_z", "mmh_x", "mmh_y", "mmh_z"]:
         halos_rank[pos][halos_rank[pos] < 0] += box_length
-        halos_rank[pos][halos_rank[pos] > box_length] -= box_length 
+        halos_rank[pos][halos_rank[pos] > box_length] -= box_length
 
     # use MPIPartition to distribute and overload
     partition = mpipartition.Partition()
 
     halos_rank = mpipartition.distribute(partition, box_length, data=halos_rank,
-                                        coord_keys=("mmh_x","mmh_y","mmh_z"))
+                                         coord_keys=("mmh_x", "mmh_y", "mmh_z"))
     halos_rank["rank"] = np.zeros_like(halos_rank["halo_x"], dtype=np.int32) + RANK
 
     # test: check that each partition has entire structure
@@ -394,7 +394,7 @@ def load_and_chop_data_bolshoi_planck(
     neededsubs = halos["halo_id"][np.isin(halos["mmhid"], allhosts)]
     assert len(np.setdiff1d(neededsubs, halos_rank["halo_id"])) == 0
 
-    halos_rank = mpipartition.overload(partition, box_length, halos_rank, 
+    halos_rank = mpipartition.overload(partition, box_length, halos_rank,
                                        buff_wprp,
                                        ["halo_x", "halo_y", "halo_z"],
                                        structure_key="mmhid"
