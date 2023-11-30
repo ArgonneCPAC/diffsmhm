@@ -162,7 +162,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
         upids_poss = np.setdiff1d(upids_poss, subs_this_pid)
         # remove host from the upid list (otherwise can get looping)
         upids_poss = np.setdiff1d(upids_poss, host)
-        if len(upids_poss) == 0: 
+        if len(upids_poss) == 0:
             continue
 
         # get most massive upid in upids_poss
@@ -268,28 +268,28 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     if RANK == 0 and export:
         # write to file
         with h5py.File(halo_file, "a") as f:
-            if "mmhid" in f.keys(): 
+            if "mmhid" in f.keys():
                 del f["mmhid"]
             f.create_dataset("mmhid", data=mmhid_all, dtype="i8")
 
-            if "mmh_x" in f.keys(): 
+            if "mmh_x" in f.keys():
                 del f["mmh_x"]
             f.create_dataset("mmh_x", data=mmh_x_all, dtype="f4")
 
-            if "mmh_y" in f.keys(): 
+            if "mmh_y" in f.keys():
                 del f["mmh_y"]
             f.create_dataset("mmh_y", data=mmh_y_all, dtype="f4")
 
             if "mmh_z" in f.keys():
-                 del f["mmh_z"]
+                del f["mmh_z"]
             f.create_dataset("mmh_z", data=mmh_z_all, dtype="f4")
 
             if "mmh_dist" in f.keys():
-                 del f["mmh_dist"]
+                del f["mmh_dist"]
             f.create_dataset("mmh_dist", data=mmh_dist_all, dtype="f4")
 
     return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
-	
+
 
 def load_and_chop_data_bolshoi_planck(
         part_file, halo_file, box_length, buff_wprp, host_mpeak_cut=0
@@ -300,10 +300,10 @@ def load_and_chop_data_bolshoi_planck(
     ----------
     part_file : str
         The path to the HDF5 file with the particle data.
-    halo_file : str 
-        The path to the HDF5 file with the halo data. 
+    halo_file : str
+        The path to the HDF5 file with the halo data.
     box_length : float
-        The length of the periodic volume. 
+        The length of the periodic volume.
     buff_wprp : float
         The buffer length to use for wp(rp).
     host_mpeak_cut : float
@@ -312,22 +312,22 @@ def load_and_chop_data_bolshoi_planck(
     Returns
     -------
     parts : dict
-        The chopped particle data. 
+        The chopped particle data.
     halos : dict
         The chopped halo data.
     """
 
-    ## HALO FILE
+    # HALO FILE
     important_keys = [
         "x", "y", "z", "vx", "vy", "vz",
-        "upid", "halo_id", 
+        "upid", "halo_id",
         "mpeak", "host_mpeak",
         "vmax_frac",
         "host_x", "host_y", "host_z", "host_dist",
         "mmhid", "mmh_x", "mmh_y", "mmh_z"
     ]
 
-    # load in the halo file and make optional host mpeak cut 
+    # load in the halo file and make optional host mpeak cut
     halos = OrderedDict()
     with h5py.File(halo_file, "r") as hdf:
         _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
@@ -341,13 +341,16 @@ def load_and_chop_data_bolshoi_planck(
                 dt = "i8"
             else:
                 dt = "f4"
-            halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)	
+            halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
 
     # if mmhid not known, find it
     if "mmhid" not in halos.keys():
-        mmhid, mmh_x, mmh_y, mmh_z, mmh_dist = find_and_write_most_massive_halos(halo_file, export=False)
 
-        halos["mmhid"] = mmh
+        mmhid,
+        mmh_x, mmh_y, mmh_z, 
+        mmh_dist = find_and_write_most_massive_halos(halo_file, export=False)
+
+        halos["mmhid"] = mmhid
 
         halos["mmh_x"] = mmh_x
         halos["mmh_y"] = mmh_y
@@ -372,9 +375,9 @@ def load_and_chop_data_bolshoi_planck(
     _munge_halos(halos_rank)
 
     # fix "out of bounds" halos using periodicty
-    for pos in ["halo_x","halo_y","halo_z", "mmh_x", "mmh_y", "mmh_z"]:
-        halos_rank[pos][halos_rank[pos]<0] += box_length
-        halos_rank[pos][halos_rank[pos]>box_length] -= box_length 
+    for pos in ["halo_x", "halo_y", "halo_z", "mmh_x", "mmh_y", "mmh_z"]:
+        halos_rank[pos][halos_rank[pos] < 0] += box_length
+        halos_rank[pos][halos_rank[pos] > box_length] -= box_length 
 
     # use MPIPartition to distribute and overload
     partition = mpipartition.Partition()
@@ -392,12 +395,12 @@ def load_and_chop_data_bolshoi_planck(
     assert len(np.setdiff1d(neededsubs, halos_rank["halo_id"])) == 0
 
     halos_rank = mpipartition.overload(partition, box_length, halos_rank, 
-                                        buff_wprp,
-                                        ["halo_x", "halo_y", "halo_z"],
-                                        structure_key="mmhid"
-    )
+                                       buff_wprp,
+                                       ["halo_x", "halo_y", "halo_z"],
+                                       structure_key="mmhid"
+                                      )
 
-    halos_rank["_inside_subvol"] = halos_rank["rank"] == RANK 
+    halos_rank["_inside_subvol"] = halos_rank["rank"] == RANK
 
     # again, check that each rank has entire structure
     mmhid_mod = np.copy(halos_rank["mmhid"])
@@ -407,9 +410,9 @@ def load_and_chop_data_bolshoi_planck(
     neededsubs = halos["halo_id"][np.isin(halos["mmhid"], allhosts)]
     assert len(np.setdiff1d(neededsubs, halos_rank["halo_id"])) == 0
 
-    # wrap to volume 
+    # wrap to volume
     center = box_length * (
-        np.array(partition.extent) / 2.0 + 
+        np.array(partition.extent) / 2.0 +
         np.array(partition.origin)
     )
 
@@ -417,21 +420,21 @@ def load_and_chop_data_bolshoi_planck(
     wrap_to_local_volume_inplace(halos_rank["halo_y"], center[1], box_length)
     wrap_to_local_volume_inplace(halos_rank["halo_z"], center[2], box_length)
 
-    ## PARTICLE FILE
+    # PARTICLE FILE
 
-    # load in particle file                                                     
-    parts = OrderedDict()                                                       
-    with h5py.File(part_file, "r") as hdf:                                      
-        parts["x"] = hdf["data"]["x"][...].astype("f4")                         
-        parts["y"] = hdf["data"]["y"][...].astype("f4")                         
-        parts["z"] = hdf["data"]["z"][...].astype("f4")                         
-        parts["part_id"] = np.arange(len(parts["x"])).astype(np.int64)  
+    # load in particle file
+    parts = OrderedDict()
+    with h5py.File(part_file, "r") as hdf:
+        parts["x"] = hdf["data"]["x"][...].astype("f4")
+        parts["y"] = hdf["data"]["y"][...].astype("f4")
+        parts["z"] = hdf["data"]["z"][...].astype("f4")
+        parts["part_id"] = np.arange(len(parts["x"])).astype(np.int64)
 
     # chop the particle catalog
-    parts_rank = mpipartition.distribute(partition, box_length, parts, 
-                                            ["x", "y", "z"])
+    parts_rank = mpipartition.distribute(partition, box_length, parts,
+                                         ["x", "y", "z"])
     parts_rank = mpipartition.overload(partition, box_length, parts_rank,
-                                        buff_wprp, ["x", "y", "z"])
+                                       buff_wprp, ["x", "y", "z"])
 
     return halos_rank, parts_rank
 
