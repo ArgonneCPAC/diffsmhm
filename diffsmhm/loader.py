@@ -346,15 +346,13 @@ def load_and_chop_data_bolshoi_planck(
     # if mmhid not known, find it
     if "mmhid" not in halos.keys():
 
-        mmhid, \
-        mmh_x, mmh_y, mmh_z, \
-        _ = find_and_write_most_massive_halos(halo_file, export=False)
+        mmh_info = find_and_write_most_massive_hosts(halo_file, export=False)
 
-        halos["mmhid"] = mmhid
+        halos["mmhid"] = mmh_info[0]
 
-        halos["mmh_x"] = mmh_x
-        halos["mmh_y"] = mmh_y
-        halos["mmh_z"] = mmh_z
+        halos["mmh_x"] = mmh_info[1]
+        halos["mmh_y"] = mmh_info[2]
+        halos["mmh_z"] = mmh_info[3]
 
     assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
 
@@ -398,7 +396,7 @@ def load_and_chop_data_bolshoi_planck(
                                        buff_wprp,
                                        ["halo_x", "halo_y", "halo_z"],
                                        structure_key="mmhid"
-                                      )
+    )
 
     halos_rank["_inside_subvol"] = halos_rank["rank"] == RANK
 
