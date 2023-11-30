@@ -5,7 +5,12 @@ import pytest
 import h5py
 import os
 
-from diffsmhm.loader import _compute_host_index, _munge_halos, wrap_to_local_volume_inplace, load_and_chop_data_bolshoi_planck, find_and_write_most_massive_hosts
+from diffsmhm.loader import(
+    _compute_host_index,
+    _munge_halos,
+    wrap_to_local_volume_inplace,
+    find_and_write_most_massive_hosts
+)
 
 from diffsmhm.tests.testing_catalogs.make_mock_halos import make_test_catalogs
 
