@@ -31,21 +31,6 @@ def _compute_host_index(halos):
     return host_index
 
 
-def _munge_halos(halos):
-    #  Compute some logs once and for all
-    halos["logmpeak"] = np.log10(halos["mpeak"])
-    halos["loghost_mpeak"] = np.log10(halos["host_mpeak"])
-    halos["logvmax_frac"] = np.log10(halos["vmax_frac"])
-
-    # we need to chop by host halo pos, so replace those
-    halos["halo_x"] = halos["x"].copy()
-    halos["halo_y"] = halos["y"].copy()
-    halos["halo_z"] = halos["z"].copy()
-    del halos["x"]
-    del halos["y"]
-    del halos["z"]
-
-
 @njit()
 def wrap_to_local_volume_inplace(pos, cen, lbox):
     """Wrap a set of points to the local volume inplace.
@@ -213,6 +198,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
             # check for loop
             if next_upid in visited_upids:
                 visited_upids.append(next_upid)
+                print(visited_upids, flush=True)
                 sys.exit("Circular structure found in halo catalog.")
             visited_upids.append(next_upid)
 
@@ -288,7 +274,10 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
                 del f["mmh_dist"]
             f.create_dataset("mmh_dist", data=mmh_dist_all, dtype="f4")
 
-    return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
+    if RANK == 0:
+        return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
+    else:
+        return None, None, None, None, None
 
 
 def load_and_chop_data_bolshoi_planck(
@@ -328,70 +317,85 @@ def load_and_chop_data_bolshoi_planck(
     ]
 
     # load in the halo file and make optional host mpeak cut
+    # RANK 0 will load and other ranks start empty until mpipartition.distribute
     halos = OrderedDict()
-    with h5py.File(halo_file, "r") as hdf:
-        _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
-        for key in hdf.keys():
-            # only keep columns we want
-            if key not in important_keys:
-                continue
+    mmhid_present=True
+    if RANK == 0:
+        with h5py.File(halo_file, "r") as hdf:
+            _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
+            for key in hdf.keys():
+                # only keep columns we want
+                if key not in important_keys:
+                    continue
 
-            # integer dtypes
+                # integer dtypes
+                if key in ("halo_id", "upid", "mmhid"):
+                    dt = "i8"
+                else:
+                    dt = "f4"
+                halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
+
+        assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
+
+        #  Compute some logs once and for all
+        halos["logmpeak"] = np.log10(halos["mpeak"])
+        halos["loghost_mpeak"] = np.log10(halos["host_mpeak"])
+        halos["logvmax_frac"] = np.log10(halos["vmax_frac"])
+
+        # change "x"/"y"/"z" to "halo_x"/etc for clarity with mmh positions
+        halos["halo_x"] = halos["x"].copy()
+        halos["halo_y"] = halos["y"].copy()
+        halos["halo_z"] = halos["z"].copy()
+        del halos["x"]
+        del halos["y"]
+        del halos["z"]
+
+        # fix "out of bounds" halos using periodicty
+        for pos in ["halo_x", "halo_y", "halo_z", "mmh_x", "mmh_y", "mmh_z"]:
+            halos[pos][halos[pos] < 0] += box_length
+            halos[pos][halos[pos] > box_length] -= box_length
+
+        if "mmhid" not in halos.keys():
+            mmhid_present=False
+
+    else:
+        # update important_keys so we get correct vals after distribute
+        important_keys[0] = "halo_x"
+        important_keys[1] = "halo_y"
+        important_keys[2] = "halo_z"
+        important_keys.append("logmpeak")
+        important_keys.append("loghost_mpeak")
+        important_keys.append("logvmax_frac")
+
+        for key in important_keys:
             if key in ("halo_id", "upid", "mmhid"):
                 dt = "i8"
             else:
                 dt = "f4"
-            halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
+            halos[key] = np.array([], dtype=dt)
+
+    COMM.bcast(mmhid_present, root=0)
 
     # if mmhid not known, find it
-    if "mmhid" not in halos.keys():
-
+    if not mmhid_present:
         mmh_info = find_and_write_most_massive_hosts(halo_file, export=False)
 
-        halos["mmhid"] = mmh_info[0]
+        if RANK == 0:
+            halos["mmhid"] = mmh_info[0]
 
-        halos["mmh_x"] = mmh_info[1]
-        halos["mmh_y"] = mmh_info[2]
-        halos["mmh_z"] = mmh_info[3]
-
-    assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
-
-    # assign each rank a chunk to then distribute and overload
-    # this is easier than only rank 0 loading for when we need to find mmh
-    avg, rem = divmod(len(halos["halo_id"]), N_RANKS)
-    rank_count = [avg + 1 if p < rem else avg for p in range(N_RANKS)]
-    displ = [sum(rank_count[:p]) for p in range(N_RANKS)]
-
-    rank_count = rank_count[RANK]
-    displ = displ[RANK]
-
-    halos_rank = {}
-    for key in halos.keys():
-        halos_rank[key] = halos[key][displ:displ+rank_count]
-
-    # munge
-    _munge_halos(halos_rank)
-
-    # fix "out of bounds" halos using periodicty
-    for pos in ["halo_x", "halo_y", "halo_z", "mmh_x", "mmh_y", "mmh_z"]:
-        halos_rank[pos][halos_rank[pos] < 0] += box_length
-        halos_rank[pos][halos_rank[pos] > box_length] -= box_length
+            halos["mmh_x"] = mmh_info[1]
+            halos["mmh_y"] = mmh_info[2]
+            halos["mmh_z"] = mmh_info[3]
 
     # use MPIPartition to distribute and overload
     partition = mpipartition.Partition()
 
-    halos_rank = mpipartition.distribute(partition, box_length, data=halos_rank,
+    halos_rank = mpipartition.distribute(partition, box_length, data=halos,
                                          coord_keys=("mmh_x", "mmh_y", "mmh_z"))
+    print(RANK, len(halos_rank.keys()), flush=True)
     halos_rank["rank"] = np.zeros_like(halos_rank["halo_x"], dtype=np.int32) + RANK
 
-    # test: check that each partition has entire structure
-    mmhid_mod = np.copy(halos_rank["mmhid"])
-    mmhid_mod[mmhid_mod == -1] = halos_rank["halo_id"][halos_rank["mmhid"] == -1]
-
-    allhosts = np.unique(mmhid_mod)
-    neededsubs = halos["halo_id"][np.isin(halos["mmhid"], allhosts)]
-    assert len(np.setdiff1d(neededsubs, halos_rank["halo_id"])) == 0
-
+    # currently this requires a modified MPI partition; pull request is opened
     halos_rank = mpipartition.overload(partition, box_length, halos_rank,
                                        buff_wprp,
                                        ["halo_x", "halo_y", "halo_z"],
@@ -399,14 +403,6 @@ def load_and_chop_data_bolshoi_planck(
                                        )
 
     halos_rank["_inside_subvol"] = halos_rank["rank"] == RANK
-
-    # again, check that each rank has entire structure
-    mmhid_mod = np.copy(halos_rank["mmhid"])
-    mmhid_mod[mmhid_mod == -1] = halos_rank["halo_id"][halos_rank["mmhid"] == -1]
-
-    allhosts = np.unique(mmhid_mod)
-    neededsubs = halos["halo_id"][np.isin(halos["mmhid"], allhosts)]
-    assert len(np.setdiff1d(neededsubs, halos_rank["halo_id"])) == 0
 
     # wrap to volume
     center = box_length * (
@@ -417,6 +413,10 @@ def load_and_chop_data_bolshoi_planck(
     wrap_to_local_volume_inplace(halos_rank["halo_x"], center[0], box_length)
     wrap_to_local_volume_inplace(halos_rank["halo_y"], center[1], box_length)
     wrap_to_local_volume_inplace(halos_rank["halo_z"], center[2], box_length)
+
+    wrap_to_local_volume_inplace(halos_rank["mmh_x"], center[0], box_length)
+    wrap_to_local_volume_inplace(halos_rank["mmh_y"], center[1], box_length)
+    wrap_to_local_volume_inplace(halos_rank["mmh_z"], center[2], box_length)
 
     # PARTICLE FILE
 
@@ -434,151 +434,9 @@ def load_and_chop_data_bolshoi_planck(
     parts_rank = mpipartition.overload(partition, box_length, parts_rank,
                                        buff_wprp, ["x", "y", "z"])
 
+    # wrap particles
+    wrap_to_local_volume_inplace(parts_rank["x"], center[0], box_length)
+    wrap_to_local_volume_inplace(parts_rank["y"], center[1], box_length)
+    wrap_to_local_volume_inplace(parts_rank["z"], center[2], box_length)
+
     return halos_rank, parts_rank
-
-# END load_and_chop_bolshoi_planck
-
-
-# TODO move to mpipartition
-# def load_and_chop_data_bolshoi_planck(
-#     *, part_file, halo_file, box_length, buff_ds, buff_wprp, ndiv, host_mpeak_cut=0
-# ):
-#     """Load and chop the data.
-
-#     Parameters
-#     ----------
-#     part_file : str
-#         The path to the HDF5 file with the particle data.
-#     halo_file : str
-#         The path to the HDF5 file with the halo data.
-#     box_length : float
-#         The length of the periodic volumne.
-#     buff_ds : float
-#         The buffer length to use for DeltaSigma.
-#     buff_wprp : float
-#         The buffer length to use for wp(rp).
-#     ndiv : int
-#         The number of divisions on each dimension.
-#     host_mpeak_cut : float
-#         The cut in host Mpeak. Use this to load data for testing.
-
-#     Returns
-#     -------
-#     halos : dict
-#         The chopped halo data.
-#     parts : dict
-#         The chopped particle data.
-#     """
-
-#     assert (
-#         box_length / ndiv + 2 * buff_wprp
-#     ) < box_length, "The buffer region is too big or ndiv is too small for the halos!"
-#     assert (
-#         box_length / ndiv + 2 * buff_ds
-#     ) < box_length, (
-#         "The buffer region is too big or ndiv is too small for the particles!"
-#     )
-
-#     start = time.time()
-#     if RANK == 0:
-#         halos = OrderedDict()
-#         with h5py.File(halo_file, "r") as hdf:
-#             _host_mpeak_mask = hdf["host_mpeak"][...] >= host_mpeak_cut
-#             for key in hdf.keys():
-#                 # don't keep all of the columns
-#                 if key not in [
-#                     "x",
-#                     "y",
-#                     "z",
-#                     "vx",
-#                     "vy",
-#                     "vz",
-#                     "upid",
-#                     "halo_id",
-#                     "mpeak",
-#                     "host_mpeak",
-#                     "vmax_frac",
-#                     "host_x",
-#                     "host_y",
-#                     "host_z",
-#                 ]:
-#                     continue
-
-#                 # integer dtypes
-#                 if key in ("halo_id", "upid"):
-#                     dt = "i8"
-#                 else:
-#                     dt = "f4"
-
-#                 halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
-
-#         assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
-
-#         print("number of halos = %d" % (halos["x"].size,))
-#         _munge_halos(halos)
-
-#         parts = OrderedDict()
-#         with h5py.File(part_file, "r") as hdf:
-#             parts["x"] = hdf["data"]["x"][...].astype("f4")
-#             parts["y"] = hdf["data"]["y"][...].astype("f4")
-#             parts["z"] = hdf["data"]["z"][...].astype("f4")
-#         parts["part_id"] = np.arange(len(parts["x"])).astype(np.int64)
-
-#         print("number of particles = %d" % (parts["x"].size,))
-
-#     else:
-#         halos = OrderedDict()
-#         parts = OrderedDict()
-
-#     COMM.Barrier()
-#     if RANK == 0:
-#         # we chop on host halo position so that we can do merging of disrupted
-#         # sats
-#         halos["x"] = halos["host_x"]
-#         halos["y"] = halos["host_y"]
-#         halos["z"] = halos["host_z"]
-
-#     halocats_for_rank, cell_ids_for_rank = get_buffered_subvolumes(
-#         COMM, halos, ndiv, ndiv, ndiv, box_length, buff_wprp,
-#     )
-#     assert (
-#         len(halocats_for_rank) == 1
-#     ), "You must have as many ranks as chopped regions!"
-#     halos = halocats_for_rank[0]
-
-#     assert len((set(halos["halo_id"]))) == len(
-#         halos["halo_id"]
-#     ), "I found duplicate halos. Something bad happened!"
-
-#     # now we put back the proper halo positions
-#     # and since we chopped on host position, we mark _inside_subvol using
-#     # the host value of _inside_subvol
-#     halos["x"] = halos["halo_x"]
-#     halos["y"] = halos["halo_y"]
-#     halos["z"] = halos["halo_z"]
-#     halos["_inside_subvol"] = halos["_inside_subvol"][_compute_host_index(halos)]
-
-#     particles_for_rank, __ = get_buffered_subvolumes(
-#         COMM, parts, ndiv, ndiv, ndiv, box_length, buff_ds,
-#     )
-#     assert (
-#         len(particles_for_rank) == 1
-#     ), "You must have as many ranks as chopped regions!"
-#     parts = particles_for_rank[0]
-
-#     assert len((set(parts["part_id"]))) == len(
-#         parts["part_id"]
-#     ), "I found duplicate particles. Something bad happened!"
-
-#     end = time.time()
-#     if RANK == 0:
-#         msg = "Runtime to chop all the data = {0:.1f} seconds"
-#         print(msg.format(end - start))
-
-#     # now we precompute the index of the host halo into which
-#     # merging satellite mass would be deposited
-#     halos["indx_to_deposit"] = _calculate_indx_to_deposit(
-#         halos["upid"], halos["halo_id"],
-#     )
-
-#     return halos, parts
