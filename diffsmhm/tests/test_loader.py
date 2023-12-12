@@ -341,7 +341,7 @@ def test_load_and_chop_data_bolshoi_planck_mmh_known():
         assert "y" in particles.keys()
         assert "z" in particles.keys()
 
-        # to try and combat file not being found when ranks aren't synced entirely
+        # to try and combat file not being found when ranks aren't synced perfectly
         COMM.Barrier()
 
 
@@ -388,5 +388,12 @@ def test_load_and_chop_data_bolshoi_planck_mmh_unknown():
         missing_subs = np.setdiff1d(needed_subs, halos["halo_id"])
         assert len(missing_subs) == 0
 
-        # to try and combat the file not being found for some ranks
+        # check particles
+        assert "part_id" in particles.keys()
+
+        assert "x" in particles.keys()
+        assert "y" in particles.keys()
+        assert "z" in particles.keys()
+
+        # to try and combat file not being found when ranks aren't synced perfectly
         COMM.Barrier()
