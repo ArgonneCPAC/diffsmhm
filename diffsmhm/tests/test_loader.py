@@ -341,6 +341,9 @@ def test_load_and_chop_data_bolshoi_planck_mmh_known():
         assert "y" in particles.keys()
         assert "z" in particles.keys()
 
+        # to try and combat file not being found when ranks aren't synced entirely
+        COMM.Barrier()
+
 
 @pytest.mark.mpi
 def test_load_and_chop_data_bolshoi_planck_mmh_unknown():
