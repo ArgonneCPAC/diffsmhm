@@ -153,6 +153,7 @@ def test_find_and_write_most_massive_hosts_upid_reassign():
         assert ok, "Test Failed - see rank 0 for details"
 
 
+@pytest.mark.mpi_skip
 def test_find_and_write_most_massive_hosts_2_structs():
     # make temp dir
     with tempfile.TemporaryDirectory() as tdir:
@@ -196,6 +197,7 @@ def test_find_and_write_most_massive_hosts_2_structs():
         assert ok, "Test Failed - see rank 0 for details."
 
 
+@pytest.mark.mpi_skip
 def test_find_and_write_most_massive_hosts_multiple_pid():
     with tempfile.TemporaryDirectory() as tdir:
         if RANK == 0:
@@ -238,6 +240,7 @@ def test_find_and_write_most_massive_hosts_multiple_pid():
         assert ok, "Test Failed - see rank 0 for details."
 
 
+@pytest.mark.mpi_skip
 def test_find_and_write_most_massive_hosts_loop():
     with tempfile.TemporaryDirectory() as tdir:
         if RANK == 0:
@@ -277,6 +280,7 @@ def test_find_and_write_most_massive_hosts_loop():
         assert ok, "Test Failed - see rank 0 for details."
 
 
+@pytest.mark.mpi
 def test_load_and_chop_data_bolshoi_planck_mmh_known():
     # test parameters
     n_halos = 1000
@@ -338,6 +342,7 @@ def test_load_and_chop_data_bolshoi_planck_mmh_known():
         assert "z" in particles.keys()
 
 
+@pytest.mark.mpi
 def test_load_and_chop_data_bolshoi_planck_mmh_unknown():
     # test parameters
     n_structs = 10
