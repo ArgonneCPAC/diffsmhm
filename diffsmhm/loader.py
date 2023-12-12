@@ -274,10 +274,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
                 del f["mmh_dist"]
             f.create_dataset("mmh_dist", data=mmh_dist_all, dtype="f4")
 
-    if RANK == 0:
-        return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
-    else:
-        return None, None, None, None, None
+    return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
 
 
 def load_and_chop_data_bolshoi_planck(
@@ -317,92 +314,81 @@ def load_and_chop_data_bolshoi_planck(
     ]
 
     # load in the halo file and make optional host mpeak cut
-    # RANK 0 will load and other ranks start empty until mpipartition.distribute
     halos = OrderedDict()
-    mmhid_present=True
-    if RANK == 0:
-        with h5py.File(halo_file, "r") as hdf:
-            _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
-            for key in hdf.keys():
-                # only keep columns we want
-                if key not in important_keys:
-                    continue
+    # load data, then assign each rank a chunk pre dist/overload
+    with h5py.File(halo_file, "r") as hdf:
+        _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
+        for key in hdf.keys():
+            # only keep columns we want
+            if key not in important_keys:
+                continue
 
-                # integer dtypes
-                if key in ("halo_id", "upid", "mmhid"):
-                    dt = "i8"
-                else:
-                    dt = "f4"
-                halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
-
-        assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
-
-        #  Compute some logs once and for all
-        halos["logmpeak"] = np.log10(halos["mpeak"])
-        halos["loghost_mpeak"] = np.log10(halos["host_mpeak"])
-        halos["logvmax_frac"] = np.log10(halos["vmax_frac"])
-
-        # change "x"/"y"/"z" to "halo_x"/etc for clarity with mmh positions
-        halos["halo_x"] = halos["x"].copy()
-        halos["halo_y"] = halos["y"].copy()
-        halos["halo_z"] = halos["z"].copy()
-        del halos["x"]
-        del halos["y"]
-        del halos["z"]
-
-        # fix "out of bounds" halos using periodicty
-        for pos in ["halo_x", "halo_y", "halo_z", "mmh_x", "mmh_y", "mmh_z"]:
-            halos[pos][halos[pos] < 0] += box_length
-            halos[pos][halos[pos] > box_length] -= box_length
-
-        if "mmhid" not in halos.keys():
-            mmhid_present=False
-
-    else:
-        # update important_keys so we get correct vals after distribute
-        important_keys[0] = "halo_x"
-        important_keys[1] = "halo_y"
-        important_keys[2] = "halo_z"
-        important_keys.append("logmpeak")
-        important_keys.append("loghost_mpeak")
-        important_keys.append("logvmax_frac")
-
-        for key in important_keys:
+            # integer dtypes
             if key in ("halo_id", "upid", "mmhid"):
                 dt = "i8"
             else:
                 dt = "f4"
-            halos[key] = np.array([], dtype=dt)
-
-    COMM.bcast(mmhid_present, root=0)
+            halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
 
     # if mmhid not known, find it
-    if not mmhid_present:
-        mmh_info = find_and_write_most_massive_hosts(halo_file, export=False)
+    if "mmhid" not in halos.keys():
+        mmh_info = find_and_write_most_massive_hosts(halo_file, export=True)
 
-        if RANK == 0:
-            halos["mmhid"] = mmh_info[0]
+        halos["mmhid"] = mmh_info[0]
 
-            halos["mmh_x"] = mmh_info[1]
-            halos["mmh_y"] = mmh_info[2]
-            halos["mmh_z"] = mmh_info[3]
+        halos["mmh_x"] = mmh_info[1]
+        halos["mmh_y"] = mmh_info[2]
+        halos["mmh_z"] = mmh_info[3]
+
+    # assign each rank a chunk
+    avg, rem = divmod(len(halos["halo_id"]), N_RANKS)
+    rank_count = [avg + 1 if p < rem else avg for p in range(N_RANKS)]
+    displ = [sum(rank_count[:p]) for p in range(N_RANKS)]
+
+    rank_count = rank_count[RANK]
+    displ = displ[RANK]
+
+    for k in halos.keys():
+        halos[k] = halos[k][displ:displ+rank_count]
+
+    assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
+
+    #  Compute some logs once and for all
+    halos["logmpeak"] = np.log10(halos["mpeak"])
+    halos["loghost_mpeak"] = np.log10(halos["host_mpeak"])
+    halos["logvmax_frac"] = np.log10(halos["vmax_frac"])
+
+    # change "x"/"y"/"z" to "halo_x"/etc for clarity with mmh positions
+    halos["halo_x"] = halos["x"].copy()
+    halos["halo_y"] = halos["y"].copy()
+    halos["halo_z"] = halos["z"].copy()
+    del halos["x"]
+    del halos["y"]
+    del halos["z"]
+
+    # fix "out of bounds" halos using periodicty
+    for pos in ["halo_x", "halo_y", "halo_z", "mmh_x", "mmh_y", "mmh_z"]:
+        halos[pos][halos[pos] < 0] += box_length
+        halos[pos][halos[pos] > box_length] -= box_length
+
+    # need to set halos with mmhid==-1 to their own id for the overload
+    halos["mmhid"][halos["mmhid"] == -1] = halos["halo_id"][halos["mmhid"] == -1]
 
     # use MPIPartition to distribute and overload
     partition = mpipartition.Partition()
 
-    halos_rank = mpipartition.distribute(partition, box_length, data=halos,
-                                         coord_keys=("mmh_x", "mmh_y", "mmh_z"))
-    print(RANK, len(halos_rank.keys()), flush=True)
-    halos_rank["rank"] = np.zeros_like(halos_rank["halo_x"], dtype=np.int32) + RANK
+    halos = mpipartition.distribute(partition, box_length, data=halos,
+                                    coord_keys=("mmh_x", "mmh_y", "mmh_z"))
 
-    # currently this requires a modified MPI partition; pull request is opened
-    halos_rank = mpipartition.overload(partition, box_length, halos_rank,
-                                       buff_wprp,
-                                       ["halo_x", "halo_y", "halo_z"],
-                                       structure_key="mmhid"
-                                       )
+    halos["rank"] = np.zeros_like(halos["halo_x"], dtype=np.int32) + RANK
 
-    halos_rank["_inside_subvol"] = halos_rank["rank"] == RANK
+    halos = mpipartition.overload(partition, box_length, halos,
+                                  buff_wprp,
+                                  ["halo_x", "halo_y", "halo_z"],
+                                  structure_key="mmhid"
+                                  )
+
+    halos["_inside_subvol"] = halos["rank"] == RANK
 
     # wrap to volume
     center = box_length * (
@@ -410,13 +396,13 @@ def load_and_chop_data_bolshoi_planck(
         np.array(partition.origin)
     )
 
-    wrap_to_local_volume_inplace(halos_rank["halo_x"], center[0], box_length)
-    wrap_to_local_volume_inplace(halos_rank["halo_y"], center[1], box_length)
-    wrap_to_local_volume_inplace(halos_rank["halo_z"], center[2], box_length)
+    wrap_to_local_volume_inplace(halos["halo_x"], center[0], box_length)
+    wrap_to_local_volume_inplace(halos["halo_y"], center[1], box_length)
+    wrap_to_local_volume_inplace(halos["halo_z"], center[2], box_length)
 
-    wrap_to_local_volume_inplace(halos_rank["mmh_x"], center[0], box_length)
-    wrap_to_local_volume_inplace(halos_rank["mmh_y"], center[1], box_length)
-    wrap_to_local_volume_inplace(halos_rank["mmh_z"], center[2], box_length)
+    wrap_to_local_volume_inplace(halos["mmh_x"], center[0], box_length)
+    wrap_to_local_volume_inplace(halos["mmh_y"], center[1], box_length)
+    wrap_to_local_volume_inplace(halos["mmh_z"], center[2], box_length)
 
     # PARTICLE FILE
 
@@ -428,15 +414,26 @@ def load_and_chop_data_bolshoi_planck(
         parts["z"] = hdf["data"]["z"][...].astype("f4")
         parts["part_id"] = np.arange(len(parts["x"])).astype(np.int64)
 
+    # again assign each rank a chunk
+    avg, rem = divmod(len(parts["part_id"]), N_RANKS)
+    rank_count = [avg + 1 if p < rem else avg for p in range(N_RANKS)]
+    displ = [sum(rank_count[:p]) for p in range(N_RANKS)]
+
+    rank_count = rank_count[RANK]
+    displ = displ[RANK]
+
+    for key in parts.keys():
+        parts[key] = parts[key][displ:displ:rank_count]
+
     # chop the particle catalog
-    parts_rank = mpipartition.distribute(partition, box_length, parts,
-                                         ["x", "y", "z"])
-    parts_rank = mpipartition.overload(partition, box_length, parts_rank,
-                                       buff_wprp, ["x", "y", "z"])
+    parts = mpipartition.distribute(partition, box_length, parts,
+                                    ["x", "y", "z"])
+    parts = mpipartition.overload(partition, box_length, parts,
+                                  buff_wprp, ["x", "y", "z"])
 
-    # wrap particles
-    wrap_to_local_volume_inplace(parts_rank["x"], center[0], box_length)
-    wrap_to_local_volume_inplace(parts_rank["y"], center[1], box_length)
-    wrap_to_local_volume_inplace(parts_rank["z"], center[2], box_length)
+    # wrap particles; use center from above
+    wrap_to_local_volume_inplace(parts["x"], center[0], box_length)
+    wrap_to_local_volume_inplace(parts["y"], center[1], box_length)
+    wrap_to_local_volume_inplace(parts["z"], center[2], box_length)
 
-    return halos_rank, parts_rank
+    return halos, parts
