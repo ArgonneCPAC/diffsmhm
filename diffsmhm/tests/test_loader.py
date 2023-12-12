@@ -360,8 +360,6 @@ def test_load_and_chop_data_bolshoi_planck_mmh_unknown():
                                     boxsize
                                  )
 
-        COMM.Barrier()
-
         halofile = COMM.bcast(halofile, root=0)
         partfile = COMM.bcast(partfile, root=0)
 
@@ -386,3 +384,6 @@ def test_load_and_chop_data_bolshoi_planck_mmh_unknown():
 
         missing_subs = np.setdiff1d(needed_subs, halos["halo_id"])
         assert len(missing_subs) == 0
+
+        # to try and combat the file not being found for some ranks
+        COMM.Barrier()
