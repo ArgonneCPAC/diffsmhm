@@ -364,6 +364,7 @@ def make_test_catalogs_loader_without_mmh(tdir, n_clones, n_parts, boxsize):
     all_pid = np.array([], dtype="i8")
     all_mmh_exp = np.array([], dtype="i8")
 
+    # this is important for finding mmh and then distibuting properly
     all_host_x = np.array([], dtype="f4")
     all_host_y = np.array([], dtype="f4")
     all_host_z = np.array([], dtype="f4")
@@ -442,6 +443,7 @@ def make_test_catalogs_loader_without_mmh(tdir, n_clones, n_parts, boxsize):
 
     # write to file
     with h5py.File(part_file, "w") as f:
+        # particle catalogs have a top level group
         dg = f.create_group("data")
 
         dg.create_dataset("x", data=particle_x, dtype="f4")
@@ -449,4 +451,7 @@ def make_test_catalogs_loader_without_mmh(tdir, n_clones, n_parts, boxsize):
         dg.create_dataset("z", data=particle_z, dtype="f4")
 
     # return filepaths
-    return halo_file, part_file
+    if RANK == 0:
+        return halo_file, part_file
+    else:
+        return None, None
