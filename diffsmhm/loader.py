@@ -293,7 +293,8 @@ def load_and_chop_data_bolshoi_planck(
     buff_wprp : float
         The buffer length to use for wp(rp).
     host_mpeak_cut : float
-        The cut in host Mpeak. Use this to load data for testing.
+        The cut in host Mpeak. Use this to load data for testing. Note that a
+        cut > 0 breaks completeness of mmh overloading.
 
     Returns
     -------
