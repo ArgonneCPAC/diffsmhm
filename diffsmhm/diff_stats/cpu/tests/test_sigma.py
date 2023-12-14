@@ -52,6 +52,7 @@ def test_sigma_cpu_serial_smoke():
     assert np.all(sigma_grad != 0)
 
 
+@pytest.mark.mpi_skip
 def test_sigma_cpu_serial_derivs():
     boxsize = 100.0
     n_halos = 100
