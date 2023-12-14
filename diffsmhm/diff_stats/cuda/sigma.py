@@ -18,7 +18,7 @@ def _count_particles(xh, yh, zh, wh, xp, yp, zp, rpbins, result):
         # for each particle
         for j in range(n_particles):
             # calculate distance
-            pdist = cmath.sqrt((xh[i]-xp[j])*(xh[i]-xp[j])
+            pdist = cmath.sqrt((xh[i]-xp[j])*(xh[i]-xp[j]) +
                                (yh[i]-yp[j])*(yh[i]-yp[j]))
 
             for r in range(n_bins):
