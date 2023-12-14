@@ -81,7 +81,7 @@ def _distribute_data(partition, lbox, data, lov):
     return data
 
 
-@pytest.mark.mpi_skip
+@pytest.mark.mpi
 def test_sigma_mpi_comp_and_reduce_cpu():
     lbox = 100.0
 
@@ -165,6 +165,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
         assert_allclose(sigma_mpi, sigma_serial)
 
 
+@pytest.mark.mpi
 def test_sigma_mpi_comp_and_reduce_cuda():
     lbox = 100
 
