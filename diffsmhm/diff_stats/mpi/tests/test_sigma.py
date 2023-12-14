@@ -16,14 +16,14 @@ except ImportError:
 if COMM is not None:
     import mpipartition
 
-from diffsmhm.diff_stats.cuda.sigma import(
+from diffsmhm.diff_stats.cuda.sigma import (
     sigma_mpi_kernel_cuda
 )
-from diffsmhm.diff_stats.cpu.sigma import(
+from diffsmhm.diff_stats.cpu.sigma import (
     sigma_cpu_serial,
     sigma_mpi_kernel_cpu
 )
-from diffsmhm.diff_stats.mpi.sigma import(
+from diffsmhm.diff_stats.mpi.sigma import (
     sigma_mpi_comp_and_reduce
 )
 
@@ -32,8 +32,6 @@ from diffsmhm.loader import wrap_to_local_volume_inplace
 
 
 def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
-    rng = np.random.RandomState(seed=seed)
-
     halo_catalog = dict()
     particle_catalog = dict()
     if RANK == 0:
@@ -55,7 +53,7 @@ def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
         halo_catalog["z"] = np.array([], dtype=np.double)
         halo_catalog["w1"] = np.array([], dtype=np.double)
         for i in range(3):
-            halo_catalog["dw1_%d" % i]= np.array([], dtype=np.double)
+            halo_catalog["dw1_%d" % i] = np.array([], dtype=np.double)
 
         particle_catalog["x"] = np.array([], dtype=np.double)
         particle_catalog["y"] = np.array([], dtype=np.double)
@@ -65,10 +63,10 @@ def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
 
 
 def _distribute_data(partition, lbox, data, lov):
-    data = mpipartition.distribute(partition, lbox, data, ["x","y"])
+    data = mpipartition.distribute(partition, lbox, data, ["x", "y"])
     data["rank"] = np.zeros_like(data["x"], dtype=np.int32) + RANK
 
-    data = mpipartition.overload(partition, lbox, data, lov, ["x","y"])
+    data = mpipartition.overload(partition, lbox, data, lov, ["x", "y"])
     data["_inside_subvol"] = data["rank"] == RANK
 
     center = lbox * (
@@ -79,11 +77,11 @@ def _distribute_data(partition, lbox, data, lov):
     # currently sigma is only 2D so cannot wrap 'z'
     wrap_to_local_volume_inplace(data["x"], center[0], lbox)
     wrap_to_local_volume_inplace(data["y"], center[1], lbox)
-    #wrap_to_local_volume_inplace(data["z"], center[2], lbox)
 
     return data
 
 
+@pytest.mark.mpi_skip
 def test_sigma_mpi_comp_and_reduce_cpu():
     lbox = 100.0
 
@@ -102,12 +100,11 @@ def test_sigma_mpi_comp_and_reduce_cpu():
     rpbins = np.linspace(0.1, rpmax, n_bins+1)
 
     # get data
-    halo_cat_orig, particle_cat_orig = _gen_data(n_halos, n_particles, n_pars, 
-                                                 lbox, seed
-                                                 )
+    halo_cat_orig, particle_cat_orig = _gen_data(n_halos, n_particles, n_pars,
+                                                 lbox, seed)
 
     # distribute and overload
-    # note: halos don't need to be overloaded for this measurement, but 
+    # note: halos don't need to be overloaded for this measurement, but
     # 	    we do it here to test handling the case where they are
     partition = mpipartition.Partition(2)
 
@@ -118,46 +115,49 @@ def test_sigma_mpi_comp_and_reduce_cpu():
     halo_dw1 = np.stack([halo_catalog["dw1_%d" % h] for h in range(n_pars)], axis=0)
 
     sigma_mpi, sigma_grad_mpi = sigma_mpi_comp_and_reduce(
-        xh = halo_catalog["x"], 
-        yh = halo_catalog["y"],
-        zh = halo_catalog["z"], 
-        wh = halo_catalog["w1"], 
-        wh_jac = halo_dw1,
-        xp = particle_catalog["x"],
-        yp = particle_catalog["y"],
-        zp = particle_catalog["z"], 
-        inside_subvol = halo_catalog["_inside_subvol"],
-        rpbins = rpbins,
-        kernel_func = sigma_mpi_kernel_cpu
+        xh=halo_catalog["x"],
+        yh=halo_catalog["y"],
+        zh=halo_catalog["z"],
+        wh=halo_catalog["w1"],
+        wh_jac=halo_dw1,
+        xp=particle_catalog["x"],
+        yp=particle_catalog["y"],
+        zp=particle_catalog["z"],
+        inside_subvol=halo_catalog["_inside_subvol"],
+        rpbins=rpbins,
+        kernel_func=sigma_mpi_kernel_cpu
     )
 
     if RANK == 0:
         # stack gradients for non-distributed catalog
-        halo_dw1_orig = np.stack([halo_cat_orig["dw1_%d" % h] for h in range(n_pars)], axis=0)
+        halo_dw1_orig = np.stack(
+                                  [halo_cat_orig["dw1_%d" % h] for h in range(n_pars)],
+                                  axis=0
+                                )
 
-        # call serial version to check mpi 
+        # call serial version to check mpi
         sigma_serial, sigma_grad_serial = sigma_cpu_serial(
-            xh = halo_cat_orig["x"],
-            yh= halo_cat_orig["y"],
-            zh = halo_cat_orig["z"],
-            wh = halo_cat_orig["w1"],
-            wh_jac = halo_dw1_orig,
-            xp = particle_cat_orig["x"],
-            yp = particle_cat_orig["y"],
-            zp = particle_cat_orig["z"],
-            rpbins = rpbins,
+            xh=halo_cat_orig["x"],
+            yh=halo_cat_orig["y"],
+            zh=halo_cat_orig["z"],
+            wh=halo_cat_orig["w1"],
+            wh_jac=halo_dw1_orig,
+            xp=particle_cat_orig["x"],
+            yp=particle_cat_orig["y"],
+            zp=particle_cat_orig["z"],
+            rpbins=rpbins,
             box_length=lbox
-		)
+        )
 
         ok = True
         try:
             assert_allclose(sigma_mpi, sigma_serial)
             assert_allclose(sigma_grad_mpi, sigma_grad_serial)
-        except:
+        except AssertionError:
             ok = False
     else:
         ok = None
-        assert sigma_mpi is None	
+        assert sigma_mpi is None
         assert sigma_grad_mpi is None
 
     ok = COMM.bcast(ok, root=0)
@@ -183,7 +183,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
 
     # get data
     halo_cat_orig, particle_cat_orig = _gen_data(n_halos, n_particles, n_pars,
-                                                    lbox, seed)
+                                                 lbox, seed)
 
     # distribute and overload
     partition = mpipartition.Partition(2)
@@ -194,34 +194,37 @@ def test_sigma_mpi_comp_and_reduce_cuda():
     halo_dw1 = np.stack([halo_catalog["dw1_%d" % h] for h in range(n_pars)], axis=0)
 
     sigma_mpi, sigma_grad_mpi = sigma_mpi_comp_and_reduce(
-        xh = halo_catalog["x"], 
-        yh = halo_catalog["y"],
-        zh = halo_catalog["z"], 
-        wh = halo_catalog["w1"], 
-        wh_jac = halo_dw1,
-        xp = particle_catalog["x"],
-        yp = particle_catalog["y"],
-        zp = particle_catalog["z"], 
-        inside_subvol = halo_catalog["_inside_subvol"],
-        rpbins = rpbins,
-        kernel_func = sigma_mpi_kernel_cuda
+        xh=halo_catalog["x"],
+        yh=halo_catalog["y"],
+        zh=halo_catalog["z"],
+        wh=halo_catalog["w1"],
+        wh_jac=halo_dw1,
+        xp=particle_catalog["x"],
+        yp=particle_catalog["y"],
+        zp=particle_catalog["z"],
+        inside_subvol=halo_catalog["_inside_subvol"],
+        rpbins=rpbins,
+        kernel_func=sigma_mpi_kernel_cuda
     )
 
     if RANK == 0:
         # stack gradients of original, non-distributed catalog
-        halo_dw1_orig = np.stack([halo_cat_orig["dw1_%d" % h] for h in range(n_pars)], axis=0)
+        halo_dw1_orig = np.stack(
+                                  [halo_cat_orig["dw1_%d" % h] for h in range(n_pars)],
+                                  axis=0
+                                )
 
-        # call serial version to check mpi 
+        # call serial version to check mpi
         sigma_serial, sigma_grad_serial = sigma_cpu_serial(
-            xh = halo_cat_orig["x"],
-            yh = halo_cat_orig["y"],
-            zh = halo_cat_orig["z"],
-            wh = halo_cat_orig["w1"],
-            wh_jac = halo_dw1_orig,
-            xp = particle_cat_orig["x"],
-            yp = particle_cat_orig["y"],
-            zp = particle_cat_orig["z"],
-            rpbins = rpbins,
+            xh=halo_cat_orig["x"],
+            yh=halo_cat_orig["y"],
+            zh=halo_cat_orig["z"],
+            wh=halo_cat_orig["w1"],
+            wh_jac=halo_dw1_orig,
+            xp=particle_cat_orig["x"],
+            yp=particle_cat_orig["y"],
+            zp=particle_cat_orig["z"],
+            rpbins=rpbins,
             box_length=lbox
         )
 
@@ -239,4 +242,3 @@ def test_sigma_mpi_comp_and_reduce_cuda():
     ok = COMM.bcast(ok, root=0)
     if not ok and RANK == 0:
         assert_allclose(sigma_mpi, sigma_serial)
-
