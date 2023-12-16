@@ -115,6 +115,7 @@ def sigma_cpu_serial(
     n_grads = wh_jac.shape[0]
 
     n_rpbins = len(rpbins) - 1
+    rads = np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
 
     rpmax = rpbins[-1]
     pimax = np.ceil(box_length).astype(int)
@@ -145,6 +146,11 @@ def sigma_cpu_serial(
     ).astype(np.double)
     sigma_exp = np.sum(_dd, axis=1)
 
+    # do radial normalization
+    sigma_exp /= rads
+    # normalize by weights total
+    sigma_exp /= sum(wh)
+
     # first term of sigma_grad
     sigma_grad_1st = np.zeros((n_grads, n_rpbins), dtype=np.double)
     for g in range(n_grads):
@@ -162,7 +168,6 @@ def sigma_cpu_serial(
             res_grad["weightavg"].reshape((n_rpbins, pimax)) *
             res["npairs"].reshape((n_rpbins, pimax))
         ).astype(np.double)
-        rads = np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
         sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1) / rads
 
     # second term of sigma grad
@@ -173,11 +178,6 @@ def sigma_cpu_serial(
     sigma_grad = (
                     sigma_grad_1st - sigma_grad_2nd
                  )/np.sum(wh)
-
-    # do radial normalization
-    sigma_exp /= np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
-    # normalize by weights total
-    sigma_exp /= sum(wh)
 
     # return
     return sigma_exp, sigma_grad
