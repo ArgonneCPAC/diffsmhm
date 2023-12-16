@@ -1,4 +1,7 @@
 import numpy as np
+import Corrfunc
+import psutil
+import os
 
 try:
     from mpi4py import MPI
@@ -10,6 +13,70 @@ except ImportError:
     COMM = None
     RANK = 0
     N_RANKS = 1
+
+
+def _copy_periodic_points_2D(x, y, z, box_length, buffer_length):
+    # copy particles within buffer_length of an edge in XY
+    n_points = len(x)
+
+    # setup position copies
+    x_periodic = np.copy(x)
+    y_periodic = np.copy(y)
+    z_periodic = np.copy(z)
+
+    for p in range(n_points):
+        # if not near edge continue
+        if (
+            not (x[p] < buffer_length or x[p] > box_length-buffer_length) and
+            not (y[p] < buffer_length or y[p] > box_length-buffer_length)
+           ):
+            continue
+
+        # left edge
+        if x[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p]+box_length)
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p])
+        # right edge
+        elif x[p] > box_length-buffer_length:
+            x_periodic = np.append(x_periodic, x[p]-box_length)
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p])
+
+        # upper edge
+        if y[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p]+box_length)
+            z_periodic = np.append(z_periodic, z[p])
+        # lower edge
+        elif y[p] > box_length-buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p] - box_length)
+            z_periodic = np.append(z_periodic, z[p])
+
+        # corners
+        # top left
+        if x[p] < buffer_length and y[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p]+box_length)
+            y_periodic = np.append(y_periodic, y[p]+box_length)
+            z_periodic = np.append(z_periodic, z[p])
+        # bottom left
+        elif x[p] < buffer_length and y[p] > box_length-buffer_length:
+            x_periodic = np.append(x_periodic, x[p]+box_length)
+            y_periodic = np.append(y_periodic, y[p]-box_length)
+            z_periodic = np.append(z_periodic, z[p])
+        # top right
+        elif x[p] > box_length-buffer_length and y[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p]-box_length)
+            y_periodic = np.append(y_periodic, y[p]+box_length)
+            z_periodic = np.append(z_periodic, z[p])
+        # bottom right
+        elif x[p] > box_length-buffer_length and y[p] > box_length-buffer_length:
+            x_periodic = np.append(x_periodic, x[p]-box_length)
+            y_periodic = np.append(y_periodic, y[p]-box_length)
+            z_periodic = np.append(z_periodic, z[p])
+
+    return x_periodic, y_periodic, z_periodic
 
 
 def sigma_cpu_serial(
@@ -45,95 +112,79 @@ def sigma_cpu_serial(
     assert rpbins[0] > 0
 
     # set up sizes
-    n_halos = len(xh)
-    n_parts = len(xp)
+    n_grads = wh_jac.shape[0]
 
     n_rpbins = len(rpbins) - 1
 
     rpmax = rpbins[-1]
+    pimax = np.ceil(box_length).astype(int)
+
+    n_threads = int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False)))
+
+    # handle periodicity
+    xp_p, yp_p, zp_p = _copy_periodic_points_2D(xp, yp, zp, box_length, rpmax)
+    n_parts = len(xp_p)
 
     # arrays to return
-    sigma = np.zeros((n_rpbins, n_halos), dtype=np.double)
+    sigma_grad = np.zeros((n_grads, n_rpbins))
 
-    # handle periodicity; need to copy particles within rpmax of edge
-    for p in range(n_parts):
-        # if not near edge, continue
-        if (
-                not (xp[p] < rpmax or xp[p] > box_length-rpmax) and
-                not (yp[p] < rpmax or yp[p] > box_length-rpmax)
-           ):
-            continue
+    # sigma
+    res = Corrfunc.theory.DDrppi(
+        autocorr=False,
+        nthreads=n_threads,
+        pimax=pimax,
+        binfile=rpbins,
+        X1=xh, Y1=yh, Z1=zh, weights1=wh,
+        periodic=False,
+        X2=xp_p, Y2=yp_p, Z2=zp_p, weights2=np.ones(n_parts, dtype=np.double),
+        weight_type="pair_product"
+    )
+    _dd = (
+        res["weightavg"].reshape((n_rpbins, pimax)) *
+        res["npairs"].reshape((n_rpbins, pimax))
+    ).astype(np.double)
+    sigma_exp = np.sum(_dd, axis=1)
 
-        # left edge
-        if xp[p] < rpmax:
-            xp = np.append(xp, xp[p]+box_length)
-            yp = np.append(yp, yp[p])
-        # right edge
-        elif xp[p] > box_length-rpmax:
-            xp = np.append(xp, xp[p]-box_length)
-            yp = np.append(yp, yp[p])
+    # first term of sigma_grad
+    sigma_grad_1st = np.zeros((n_grads, n_rpbins), dtype=np.double)
+    for g in range(n_grads):
+        res_grad = Corrfunc.theory.DDrppi(
+            autocorr=False,
+            nthreads=n_threads,
+            pimax=pimax,
+            binfile=rpbins,
+            X1=xh, Y1=yh, Z1=zh, weights1=wh_jac[g, :],
+            periodic=False,
+            X2=xp_p, Y2=yp_p, Z2=zp_p, weights2=np.ones(n_parts, dtype=np.double),
+            weight_type="pair_product"
+        )
+        _dd_grad = (
+            res_grad["weightavg"].reshape((n_rpbins, pimax)) *
+            res["npairs"].reshape((n_rpbins, pimax))
+        ).astype(np.double)
+        rads = np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
+        sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1) / rads
 
-        # upper edge
-        if yp[p] < rpmax:
-            xp = np.append(xp, xp[p])
-            yp = np.append(yp, yp[p]+box_length)
-        # lower edge
-        elif yp[p] > box_length-rpmax:
-            xp = np.append(xp, xp[p])
-            yp = np.append(yp, yp[p] - box_length)
-
-        # corners
-        # top left
-        if xp[p] < rpmax and yp[p] < rpmax:
-            xp = np.append(xp, xp[p]+box_length)
-            yp = np.append(yp, yp[p]+box_length)
-        # bottom left
-        elif xp[p] < rpmax and yp[p] > box_length-rpmax:
-            xp = np.append(xp, xp[p]+box_length)
-            yp = np.append(yp, yp[p]-box_length)
-        # top right
-        elif xp[p] > box_length-rpmax and yp[p] < rpmax:
-            xp = np.append(xp, xp[p]-box_length)
-            yp = np.append(yp, yp[p]+box_length)
-        # bottom right
-        elif xp[p] > box_length-rpmax and yp[p] > box_length-rpmax:
-            xp = np.append(xp, xp[p]-box_length)
-            yp = np.append(yp, yp[p]-box_length)
-
-    # update number of particles
-    n_parts = len(xp)
-
-    # for each halo
-    for i in range(n_halos):
-        for j in range(n_parts):
-            # calculate distance from halo center to each particle
-            pdist = np.sqrt(np.power(xh[i] - xp[j], 2) +
-                            np.power(yh[i] - yp[j], 2), dtype=np.double)
-
-            for r in range(n_rpbins):
-                if pdist >= rpbins[r] and pdist < rpbins[r+1]:
-                    # note: averaged over area of annulus
-                    sigma[r, i] += 1 / (np.pi * (rpbins[r+1]**2 - rpbins[r]**2))
-
-    # apply weights to sigma and normalize
-    sigma_exp = np.matmul(sigma, wh, dtype=np.double) / np.sum(wh)
-
-    # apply weight gradients for sigma gradient
-    sigma_grad_weights = np.matmul(wh_jac, sigma.T, dtype=np.double)
-
-    grad_sum = np.sum(wh_jac, axis=1, dtype=np.double).reshape(wh_jac.shape[0], 1)
+    # second term of sigma grad
+    grad_sum = np.sum(wh_jac, axis=1, dtype=np.double).reshape(n_grads, 1)
     sigma_row = sigma_exp.reshape(1, n_rpbins)
+    sigma_grad_2nd = np.matmul(grad_sum, sigma_row, dtype=np.double)
 
     sigma_grad = (
-                    sigma_grad_weights - np.matmul(grad_sum, sigma_row, dtype=np.double)
+                    sigma_grad_1st - sigma_grad_2nd
                  )/np.sum(wh)
+
+    # do radial normalization
+    sigma_exp /= np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
+    # normalize by weights total
+    sigma_exp /= sum(wh)
 
     # return
     return sigma_exp, sigma_grad
 
 
 def sigma_mpi_kernel_cpu(
-    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins
+    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, box_length
 ):
     """
     sigma_mpi_kernel_cpu(...)
@@ -143,55 +194,75 @@ def sigma_mpi_kernel_cpu(
     ---------
     xh, yh, zh, wh : array-like, shape (n_halos,)
         The arrays of positions and weights for the halos.
-    wh_jac : array-like, shape (n_params, n_halos)
+    wh_jac : array-like, shape (n_grads, n_halos)
         The weight gradients for the halos.
     xp, yp, zp, : array-like, shape (n_particles,)
         The arrays of positions, weights, and weight gradients for the particles.
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges. Note that this array is one longer than
         the number of bins in the 'rp' (radial) direction.
+    box_length : float
+        The size of the total periodic volume.
 
     Returns
     -------
     sigma : array-like, shape(n_rpbins,)
         The surface density at each bin specified by rpbins.
-    sigma_grad : array-like, shape(n_halos, n_rpbins)
-        The surface density gradients at each bin specified by rpbins
+    sigma_grad_1st : array-like, shape(n_grads, n_rpbins)
+        The first term of surface density gradients at each bin specified by
+        rpbins.
     """
 
     # set up sizes
-    n_halos = len(xh)
     n_parts = len(xp)
 
-    n_params = wh_jac.shape[0]
+    n_grads = wh_jac.shape[0]
 
     n_rpbins = len(rpbins) - 1
 
-    # arrays to return
+    pimax = np.ceil(box_length).astype(int)
+
+    n_threads = int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False)))
+
     # Note: 2nd term of gradient needs to be calculated with the finalized sigma
     # and grads, so we only handle the calculation of the first term here
-    sigma = np.zeros((n_rpbins, n_halos), dtype=np.double)
-    sigma_grad_1st = np.zeros((n_params, n_rpbins), dtype=np.double)
 
-    # for each halo
-    for i in range(n_halos):
-        # for each particle
-        for j in range(n_parts):
-            # calculate distance from halo center to each particle
-            pdist = np.sqrt(np.power(xh[i] - xp[j], 2)
-                            + np.power(yh[i] - yp[j], 2))
+    res = Corrfunc.theory.DDrppi(
+        autocorr=False,
+        nthreads=n_threads,
+        pimax=pimax,
+        binfile=rpbins,
+        X1=xh, Y1=yh, Z1=zh, weights1=wh,
+        periodic=False,
+        X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.double),
+        weight_type="pair_product"
+    )
 
-            for r in range(n_rpbins):
-                if pdist >= rpbins[r] and pdist < rpbins[r+1]:
-                    sigma[r, i] += 1
+    _dd = (
+        res["weightavg"].reshape((n_rpbins, pimax)) *
+        res["npairs"].reshape((n_rpbins, pimax))
+    ).astype(np.float64)
+    sigma_exp = np.sum(_dd, axis=1)
 
-    # do partial sum; don't normalize by total of weights
-    # apply galaxy weights
-    sigma_exp = np.matmul(sigma, wh)
-
-    # first term of gradient
-    for g in range(n_params):
-        sigma_grad_1st[g, :] = np.matmul(sigma, wh_jac[g, :].T)
+    # do partial sum for 1st grad term; don't normalize by total of weights
+    sigma_grad_1st = np.zeros((n_grads, n_rpbins), dtype=np.double)
+    for g in range(n_grads):
+        res_grad = Corrfunc.theory.DDrppi(
+            autocorr=False,
+            nthreads=n_threads,
+            pimax=pimax,
+            binfile=rpbins,
+            X1=xh, Y1=yh, Z1=zh, weights1=wh_jac[g, :],
+            periodic=False,
+            X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.double),
+            weight_type="pair_product"
+        )
+        _dd_grad = (
+            res_grad["weightavg"].reshape((n_rpbins, pimax)) *
+            res["npairs"].reshape((n_rpbins, pimax))
+        ).astype(np.float64)
+        rads = np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
+        sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1) / rads
 
     # return
     return sigma_exp, sigma_grad_1st

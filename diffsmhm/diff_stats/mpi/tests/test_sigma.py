@@ -125,6 +125,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
         zp=particle_catalog["z"],
         inside_subvol=halo_catalog["_inside_subvol"],
         rpbins=rpbins,
+        box_length=lbox,
         kernel_func=sigma_mpi_kernel_cpu
     )
 
@@ -204,6 +205,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
         yp=particle_catalog["y"],
         zp=particle_catalog["z"],
         inside_subvol=halo_catalog["_inside_subvol"],
+        box_length=lbox,
         rpbins=rpbins,
         kernel_func=sigma_mpi_kernel_cuda
     )

@@ -18,6 +18,7 @@ def sigma_mpi_comp_and_reduce(
     xp, yp, zp,
     inside_subvol,
     rpbins,
+    box_length,
     kernel_func
 ):
     """
@@ -37,6 +38,8 @@ def sigma_mpi_comp_and_reduce(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges. Note that this array is one longer than the
         number of bins in the 'rp' (radial) direction.
+    box_length : float
+        Total size of the periodic volume.
     kernel_func : function
         The per-task function to run on the rest of the input arguments. It is
         called with keywords that are the same as for this function. It should
@@ -70,7 +73,8 @@ def sigma_mpi_comp_and_reduce(
         xh=xh_sv, yh=yh_sv, zh=zh_sv, wh=wh_sv,
         wh_jac=wh_jac_sv,
         xp=xp, yp=yp, zp=zp,
-        rpbins=rpbins
+        rpbins=rpbins,
+        box_length=box_length
     )
 
     # reduction

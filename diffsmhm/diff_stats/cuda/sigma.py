@@ -32,6 +32,7 @@ def sigma_mpi_kernel_cuda(
     wh_jac,
     xp, yp, zp,
     rpbins,
+    box_length,
     threads=32,
     blocks=512
 ):
@@ -50,6 +51,9 @@ def sigma_mpi_kernel_cuda(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges, Note that this array is one longer than the
         number of bins in the 'rp' (xy radial) direction.
+    box_length : float
+        Length of the periodic volume, not used in the cuda kernel but included
+        for consistency with CPU versions.
 
     Returns
     -------
@@ -68,7 +72,9 @@ def sigma_mpi_kernel_cuda(
 
     # set up arrays
     sigma = cuda.to_device(np.zeros((n_rpbins * n_halos), dtype=np.double))
-    sigma_grad = np.zeros((n_params, n_rpbins), dtype=np.double)
+
+    sigma_exp = np.empty((n_rpbins,), dtype=np.double)
+    sigma_grad = np.empty((n_params, n_rpbins), dtype=np.double)
 
     # do the actual counting on GPU
     _count_particles[blocks, threads](
@@ -81,10 +87,10 @@ def sigma_mpi_kernel_cuda(
     sigma_host = sigma.copy_to_host().reshape((n_rpbins, n_halos))
 
     # apply weights
-    sigma_exp = np.matmul(sigma_host, wh)
+    np.matmul(sigma_host, wh, out=sigma_exp)
 
     # do partial grad sum
     for g in range(n_params):
-        sigma_grad[g, :] = np.matmul(sigma_host, wh_jac[g, :].T)
+        np.matmul(sigma_host, wh_jac[g, :].T, out=sigma_grad[g, :])
 
     return sigma_exp, sigma_grad
