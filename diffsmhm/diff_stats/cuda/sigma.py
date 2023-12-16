@@ -71,10 +71,10 @@ def sigma_mpi_kernel_cuda(
     n_rpbins = len(rpbins) - 1
 
     # set up arrays
-    sigma = cuda.to_device(np.zeros((n_rpbins * n_halos), dtype=np.double))
+    sigma = cuda.to_device(np.zeros((n_rpbins * n_halos), dtype=np.float64))
 
-    sigma_exp = np.empty((n_rpbins,), dtype=np.double)
-    sigma_grad = np.empty((n_params, n_rpbins), dtype=np.double)
+    sigma_exp = np.empty((n_rpbins,), dtype=np.float64)
+    sigma_grad = np.empty((n_params, n_rpbins), dtype=np.float64)
 
     # do the actual counting on GPU
     _count_particles[blocks, threads](

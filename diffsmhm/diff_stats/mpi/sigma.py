@@ -85,11 +85,11 @@ def sigma_mpi_comp_and_reduce(
 
     # get weight gradients total
     sum_wh_jac_rank = np.sum(wh_jac_sv, axis=1)
-    sum_wh_jac_all = np.zeros(n_grads, dtype=np.double)
+    sum_wh_jac_all = np.zeros(n_grads, dtype=np.float64)
     COMM.Reduce(sum_wh_jac_rank, sum_wh_jac_all, op=MPI.SUM, root=0)
 
     # get sum of partial sums of first grad term from kernels
-    sum_sigma_grad_1st = np.zeros((n_grads, n_bins), dtype=np.double)
+    sum_sigma_grad_1st = np.zeros((n_grads, n_bins), dtype=np.float64)
     for p in range(n_grads):
         COMM.Reduce(sigma_grad_1st[p, :], sum_sigma_grad_1st[p, :], op=MPI.SUM, root=0)
 
@@ -97,8 +97,8 @@ def sigma_mpi_comp_and_reduce(
     sigma_red /= np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
 
     # get weights total
-    sum_weights_rank = np.array([sum(wh[inside_subvol])], dtype=np.double)
-    sum_weights_all = np.ones(1, dtype=np.double)
+    sum_weights_rank = np.array([sum(wh[inside_subvol])], dtype=np.float64)
+    sum_weights_all = np.ones(1, dtype=np.float64)
 
     COMM.Reduce(sum_weights_rank, sum_weights_all, op=MPI.SUM, root=0)
 
@@ -106,7 +106,7 @@ def sigma_mpi_comp_and_reduce(
     sigma_red /= sum_weights_all[0]
 
     # now finish the gradient
-    sigma_grad_2nd = np.zeros((n_grads, n_bins), dtype=np.double)
+    sigma_grad_2nd = np.zeros((n_grads, n_bins), dtype=np.float64)
     for p in range(n_grads):
         sigma_grad_2nd[p, :] = sum_wh_jac_all[p] * sigma_red
     sigma_grad_full = (sum_sigma_grad_1st - sigma_grad_2nd) / sum_weights_all

@@ -48,16 +48,16 @@ def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
         particle_catalog["y"] = np.random.uniform(0.0, lbox, n_particles)
         particle_catalog["z"] = np.random.uniform(0.0, lbox, n_particles)
     else:
-        halo_catalog["x"] = np.array([], dtype=np.double)
-        halo_catalog["y"] = np.array([], dtype=np.double)
-        halo_catalog["z"] = np.array([], dtype=np.double)
-        halo_catalog["w1"] = np.array([], dtype=np.double)
+        halo_catalog["x"] = np.array([], dtype=np.float64)
+        halo_catalog["y"] = np.array([], dtype=np.float64)
+        halo_catalog["z"] = np.array([], dtype=np.float64)
+        halo_catalog["w1"] = np.array([], dtype=np.float64)
         for i in range(3):
-            halo_catalog["dw1_%d" % i] = np.array([], dtype=np.double)
+            halo_catalog["dw1_%d" % i] = np.array([], dtype=np.float64)
 
-        particle_catalog["x"] = np.array([], dtype=np.double)
-        particle_catalog["y"] = np.array([], dtype=np.double)
-        particle_catalog["z"] = np.array([], dtype=np.double)
+        particle_catalog["x"] = np.array([], dtype=np.float64)
+        particle_catalog["y"] = np.array([], dtype=np.float64)
+        particle_catalog["z"] = np.array([], dtype=np.float64)
 
     return halo_catalog, particle_catalog
 

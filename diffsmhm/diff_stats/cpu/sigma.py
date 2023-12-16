@@ -115,7 +115,7 @@ def sigma_cpu_serial(
     n_grads = wh_jac.shape[0]
 
     n_rpbins = len(rpbins) - 1
-    rads = np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
+    rads = np.array(np.pi * (rpbins[1:]**2 - rpbins[:-1]**2), dtype=np.float64)
 
     rpmax = rpbins[-1]
     pimax = np.ceil(box_length).astype(int)
@@ -127,7 +127,7 @@ def sigma_cpu_serial(
     n_parts = len(xp_p)
 
     # arrays to return
-    sigma_grad = np.zeros((n_grads, n_rpbins))
+    sigma_grad = np.zeros((n_grads, n_rpbins), dtype=np.float64)
 
     # sigma
     res = Corrfunc.theory.DDrppi(
@@ -137,22 +137,22 @@ def sigma_cpu_serial(
         binfile=rpbins,
         X1=xh, Y1=yh, Z1=zh, weights1=wh,
         periodic=False,
-        X2=xp_p, Y2=yp_p, Z2=zp_p, weights2=np.ones(n_parts, dtype=np.double),
+        X2=xp_p, Y2=yp_p, Z2=zp_p, weights2=np.ones(n_parts, dtype=np.float64),
         weight_type="pair_product"
     )
     _dd = (
         res["weightavg"].reshape((n_rpbins, pimax)) *
         res["npairs"].reshape((n_rpbins, pimax))
-    ).astype(np.double)
-    sigma_exp = np.sum(_dd, axis=1)
+    ).astype(np.float64)
+    sigma_exp = np.sum(_dd, axis=1, dtype=np.float64)
 
     # do radial normalization
     sigma_exp /= rads
     # normalize by weights total
-    sigma_exp /= sum(wh)
+    sigma_exp /= np.sum(wh, dtype=np.float64)
 
     # first term of sigma_grad
-    sigma_grad_1st = np.zeros((n_grads, n_rpbins), dtype=np.double)
+    sigma_grad_1st = np.zeros((n_grads, n_rpbins), dtype=np.float64)
     for g in range(n_grads):
         res_grad = Corrfunc.theory.DDrppi(
             autocorr=False,
@@ -161,23 +161,23 @@ def sigma_cpu_serial(
             binfile=rpbins,
             X1=xh, Y1=yh, Z1=zh, weights1=wh_jac[g, :],
             periodic=False,
-            X2=xp_p, Y2=yp_p, Z2=zp_p, weights2=np.ones(n_parts, dtype=np.double),
+            X2=xp_p, Y2=yp_p, Z2=zp_p, weights2=np.ones(n_parts, dtype=np.float64),
             weight_type="pair_product"
         )
         _dd_grad = (
             res_grad["weightavg"].reshape((n_rpbins, pimax)) *
             res["npairs"].reshape((n_rpbins, pimax))
-        ).astype(np.double)
-        sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1) / rads
+        ).astype(np.float64)
+        sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1, dtype=np.float64) / rads
 
     # second term of sigma grad
-    grad_sum = np.sum(wh_jac, axis=1, dtype=np.double).reshape(n_grads, 1)
+    grad_sum = np.sum(wh_jac, axis=1, dtype=np.float64).reshape(n_grads, 1)
     sigma_row = sigma_exp.reshape(1, n_rpbins)
-    sigma_grad_2nd = np.matmul(grad_sum, sigma_row, dtype=np.double)
+    sigma_grad_2nd = np.matmul(grad_sum, sigma_row, dtype=np.float64)
 
     sigma_grad = (
                     sigma_grad_1st - sigma_grad_2nd
-                 )/np.sum(wh)
+                 )/np.sum(wh, dtype=np.float64)
 
     # return
     return sigma_exp, sigma_grad
@@ -234,7 +234,7 @@ def sigma_mpi_kernel_cpu(
         binfile=rpbins,
         X1=xh, Y1=yh, Z1=zh, weights1=wh,
         periodic=False,
-        X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.double),
+        X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.float64),
         weight_type="pair_product"
     )
 
@@ -245,7 +245,7 @@ def sigma_mpi_kernel_cpu(
     sigma_exp = np.sum(_dd, axis=1)
 
     # do partial sum for 1st grad term; don't normalize by total of weights
-    sigma_grad_1st = np.zeros((n_grads, n_rpbins), dtype=np.double)
+    sigma_grad_1st = np.zeros((n_grads, n_rpbins), dtype=np.float64)
     for g in range(n_grads):
         res_grad = Corrfunc.theory.DDrppi(
             autocorr=False,
@@ -254,7 +254,7 @@ def sigma_mpi_kernel_cpu(
             binfile=rpbins,
             X1=xh, Y1=yh, Z1=zh, weights1=wh_jac[g, :],
             periodic=False,
-            X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.double),
+            X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.float64),
             weight_type="pair_product"
         )
         _dd_grad = (
