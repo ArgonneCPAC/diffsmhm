@@ -32,8 +32,11 @@ from diffsmhm.loader import wrap_to_local_volume_inplace
 
 
 def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
+    rng = numpy.random.RandomState(seed)
+
     halo_catalog = dict()
     particle_catalog = dict()
+
     if RANK == 0:
         _halo_catalog = gen_mstar_data(seed=seed, npts=n_halos, boxsize=lbox,
                                        npars=n_pars)
@@ -44,9 +47,9 @@ def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
         for i in range(3):
             halo_catalog["dw1_%d" % i] = _halo_catalog["w_jac"][i, :]
 
-        particle_catalog["x"] = np.random.uniform(0.0, lbox, n_particles)
-        particle_catalog["y"] = np.random.uniform(0.0, lbox, n_particles)
-        particle_catalog["z"] = np.random.uniform(0.0, lbox, n_particles)
+        particle_catalog["x"] = rng.uniform(0.0, lbox, n_particles)
+        particle_catalog["y"] = rng.uniform(0.0, lbox, n_particles)
+        particle_catalog["z"] = rng.uniform(0.0, lbox, n_particles)
     else:
         halo_catalog["x"] = np.array([], dtype=np.float64)
         halo_catalog["y"] = np.array([], dtype=np.float64)
