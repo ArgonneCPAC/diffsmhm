@@ -115,7 +115,7 @@ def sigma_cpu_serial(
     n_grads = wh_jac.shape[0]
 
     n_rpbins = len(rpbins) - 1
-    rads = np.array(np.pi * (np.square(rpbins[1:], dtype=np.float64) - 
+    rads = np.array(np.pi * (np.square(rpbins[1:], dtype=np.float64) -
                     np.square(rpbins[:-1], dtype=np.float64)), dtype=np.float64)
 
     rpmax = rpbins[-1]
