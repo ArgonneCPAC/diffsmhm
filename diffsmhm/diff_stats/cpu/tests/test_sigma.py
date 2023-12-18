@@ -58,12 +58,14 @@ def test_sigma_cpu_serial_derivs():
     n_halos = 100
     n_particles = 1000
 
-    halos = gen_mstar_data(boxsize=boxsize, npts=n_halos, seed=42)
+    rseed = 42
+    rng = np.random.RandomState(seed=rseed)
 
-    parts_x = np.random.uniform(0.0, boxsize, n_particles)
-    parts_y = np.random.uniform(0.0, boxsize, n_particles)
-    parts_z = np.random.uniform(0.0, boxsize, n_particles)
+    halos = gen_mstar_data(boxsize=boxsize, npts=n_halos, seed=rseed)
 
+    parts_x = rng.uniform(0.0, boxsize, n_particles)
+    parts_y = rng.uniform(0.0, boxsize, n_particles)
+    parts_z = rng.uniform(0.0, boxsize, n_particles)
     sigma, sigma_grad = sigma_cpu_serial(
         xh=halos["x"],
         yh=halos["y"],
