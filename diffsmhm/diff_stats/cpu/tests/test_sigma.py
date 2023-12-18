@@ -4,7 +4,8 @@ from numpy.testing import assert_allclose
 import pytest
 
 from diffsmhm.diff_stats.cpu.sigma import (
-    sigma_cpu_serial
+    sigma_cpu_serial,
+    delta_sigma_from_sigma
 )
 from diffsmhm.testing import gen_mstar_data
 
@@ -113,3 +114,20 @@ def test_sigma_cpu_serial_derivs():
         assert_allclose(sigma_grad[pind, :], grad)
         assert np.any(grad != 0)
         assert np.any(sigma_grad[pind, :] != 0)
+
+
+@pytest.mark.mpi_skip
+def test_delta_sigma_from_sigma():
+    rpbins = np.array([1, 2, 3, 4, 5], dtype=np.double)
+    sigma = np.array([40, 30, 20, 10], dtype=np.double)
+
+    delta_sigma = delta_sigma_from_sigma(rpbins, sigma)
+
+    delta_sigma_exp = np.array([
+                        -40,
+                        10/np.pi - 30,
+                        70/(9*np.pi) - 20,
+                        90/(16*np.pi) - 10
+                      ], dtype=np.double)
+
+    assert_allclose(delta_sigma_exp, delta_sigma)

@@ -267,3 +267,33 @@ def sigma_mpi_kernel_cpu(
 
     # return
     return sigma_exp, sigma_grad_1st
+
+
+def delta_sigma_from_sigma(rpbins, sigma):
+    """
+    delta_sigma_from_sigma(...)
+        Calculates delta sigma based on a provided sigma array.
+
+    Parameters
+    ----------
+    rpbins : array-like, shape(n_rpbins+1,)
+        Array of radial bin edges, note that this array is one longer than
+        the number of bins in the rp direction.
+    sigma : array-like, shape(n_rpbins,)
+        The radially binned values of halo surface density.
+
+    Returns
+    -------
+    delta_sigma : array-like, shape(n_rpbins,)
+        The radially binned surface mass density.
+    """
+
+    n_rpbins = len(sigma)
+    delta_sigma = np.empty(n_rpbins, dtype=np.float64)
+
+    for i in range(n_rpbins):
+        # TODO: add cylinder length to normalization? (currently is a circle)
+        interior_sigma = np.sum(sigma[:i])/(np.pi * np.square(rpbins[i]))
+        delta_sigma[i] = interior_sigma - sigma[i]
+
+    return delta_sigma
