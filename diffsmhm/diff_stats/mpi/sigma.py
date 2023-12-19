@@ -18,11 +18,11 @@ def sigma_mpi_comp_and_reduce(
     xp, yp, zp,
     inside_subvol,
     rpbins,
-    box_length,
+    boxsize,
     kernel_func
 ):
     """
-    The per-process cpu kernel for MPI-parallel surface density calculations.
+    The per-process cpu kernel for MPI-parallel sigma computations
 
     Parameters
     ---------
@@ -31,14 +31,14 @@ def sigma_mpi_comp_and_reduce(
     wh_jac : array-like, shape (n_grads, n_pts,)
         The array of weight gradients for the halos.
     xp, yp, zp : array-like, shape (n_pts,)
-        The arrays of positions, weights, and weight gradients for the particles.
+        The arrays of positions for the particles.
     inside_subvol : array-like, shape (n_halos,)
         A boolean array with 'True' when the halo is inside the subvolume
         and 'False' otherwise.
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges. Note that this array is one longer than the
         number of bins in the 'rp' (radial) direction.
-    box_length : float
+    boxsize: float
         Total size of the periodic volume.
     kernel_func : function
         The per-task function to run on the rest of the input arguments. It is
@@ -49,9 +49,9 @@ def sigma_mpi_comp_and_reduce(
     Returns
     -------
     sigma : array-like, shape (n_halos, n_rpbins)
-        The 2D surface density of each halo.
+        The 2D surface density function.
     sigma_grad : array-like, shape (n_halos, n_rpbins)
-        The gradients of the 2D surface density.
+        The gradients of the 2D surface density function.
     """
 
     # assert smallest bin is not zero
@@ -74,7 +74,7 @@ def sigma_mpi_comp_and_reduce(
         wh_jac=wh_jac_sv,
         xp=xp, yp=yp, zp=zp,
         rpbins=rpbins,
-        box_length=box_length
+        boxsize=boxsize
     )
 
     # reduction

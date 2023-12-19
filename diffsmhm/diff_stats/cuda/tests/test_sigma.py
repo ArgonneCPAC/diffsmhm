@@ -40,7 +40,7 @@ def test_sigma_serial_cuda():
         yp=particle_cat["y"],
         zp=particle_cat["z"],
         rpbins=rpbins,
-        box_length=lbox
+        boxsize=lbox
     )
 
     sigma_cpu, sigma_grad_cpu = sigma_serial_cpu(
@@ -53,7 +53,7 @@ def test_sigma_serial_cuda():
         yp=particle_cat["y"],
         zp=particle_cat["z"],
         rpbins=rpbins,
-        box_length=lbox
+        boxsize=lbox
     )
 
     assert_allclose(sigma_cpu, sigma_cuda)

@@ -40,7 +40,7 @@ def test_sigma_serial_cpu_smoke():
     sigma, sigma_grad = sigma_serial_cpu(
         xh=xh, yh=yh, zh=zh, wh=wh, wh_jac=dwh,
         xp=xp, yp=yp, zp=zp,
-        rpbins=bins, box_length=boxsize
+        rpbins=bins, boxsize=boxsize
     )
 
     # check calculation
@@ -77,7 +77,7 @@ def test_sigma_cpu_serial_derivs():
         yp=parts_y,
         zp=parts_z,
         rpbins=halos["rp_bins"],
-        box_length=boxsize
+        boxsize=boxsize
     )
 
     eps = 1e-6
@@ -93,7 +93,7 @@ def test_sigma_cpu_serial_derivs():
             yp=parts_y,
             zp=parts_z,
             rpbins=halos["rp_bins"],
-            box_length=boxsize
+            boxsize=boxsize
         )
 
         w_m = halos["w"] - halos["w_jac"][pind, :] * eps
@@ -107,7 +107,7 @@ def test_sigma_cpu_serial_derivs():
             yp=parts_y,
             zp=parts_z,
             rpbins=halos["rp_bins"],
-            box_length=boxsize
+            boxsize=boxsize
         )
 
         grad = (sigma_p - sigma_m)/2.0/eps

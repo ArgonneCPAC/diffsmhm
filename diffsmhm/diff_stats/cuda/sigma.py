@@ -34,13 +34,13 @@ def sigma_serial_cuda(
     wh_jac,
     xp, yp, zp,
     rpbins,
-    box_length,
+    boxsize,
     threads=32,
     blocks=512
 ):
     """
     sigma_serial_cuda(...)
-        Calculate sigma with derivatives on a periodic volume.
+        Compute sigma with derivatives for a periodic volume.
 
     Parameters
     ----------
@@ -53,16 +53,16 @@ def sigma_serial_cuda(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges, note that this array is one longer than the
         number of bins in the 'rp' (xy radial) direction.
-    box_length : float
+    boxsize: float
         Length of the periodic volume, not used in the cuda kernel but included
         for consistency with CPU versions.
 
     Returns
     -------
     sigma : array-like, shape(n_rpbins,)
-        The surface density at each bin specified by rpbins.
+        The surface density at each radial bin.
     sigma_grad : array-like, shape(n_rpbins,)
-        The surface density gradients at each bin specified by rpbins.
+        The surface density gradients at each radial bin.
     """
 
     # ensure smallest bin is not zero
@@ -78,7 +78,7 @@ def sigma_serial_cuda(
     rpmax = rpbins[-1]
 
     # handle periodicity
-    xp_p, yp_p, zp_p = _copy_periodic_points_2D(xp, yp, zp, box_length, rpmax)
+    xp_p, yp_p, zp_p = _copy_periodic_points_2D(xp, yp, zp, boxsize, rpmax)
 
     # set up arrays
     sigma = cuda.to_device(np.zeros(n_rpbins, dtype=np.float64))
@@ -137,13 +137,13 @@ def sigma_mpi_kernel_cuda(
     wh_jac,
     xp, yp, zp,
     rpbins,
-    box_length,
+    boxsize,
     threads=32,
     blocks=512
 ):
     """
     sigma_mpi_kernel_cuda(...)
-        Calculates the 2D (x-y) surface density at provided radius bins.
+        Per-process CUDA kernel for MPI-parallel sigma computations.
 
     Parameters
     ----------
@@ -156,14 +156,14 @@ def sigma_mpi_kernel_cuda(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges, Note that this array is one longer than the
         number of bins in the 'rp' (xy radial) direction.
-    box_length : float
+    boxsize: float
         Length of the periodic volume, not used in the cuda kernel but included
         for consistency with CPU versions.
 
     Returns
     -------
     sigma : array-like, shape(n_rpbins,)
-        The surface density at each bin specified by radii.
+        The surface density at each radial bin.
     sigma_grad_1st : array-like, shape(n_grads, n_rpbins)
         Partial sum of the first term of the gradients for sigma.
     """

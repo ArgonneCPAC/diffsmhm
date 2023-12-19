@@ -15,7 +15,7 @@ except ImportError:
     N_RANKS = 1
 
 
-def _copy_periodic_points_2D(x, y, z, box_length, buffer_length):
+def _copy_periodic_points_2D(x, y, z, boxsize, buffer_length):
     # copy particles within buffer_length of an edge in XY
     n_points = len(x)
 
@@ -27,64 +27,64 @@ def _copy_periodic_points_2D(x, y, z, box_length, buffer_length):
     for p in range(n_points):
         # if not near edge continue
         if (
-            not (x[p] < buffer_length or x[p] > box_length-buffer_length) and
-            not (y[p] < buffer_length or y[p] > box_length-buffer_length)
+            not (x[p] < buffer_length or x[p] > boxsize-buffer_length) and
+            not (y[p] < buffer_length or y[p] > boxsize-buffer_length)
            ):
             continue
 
         # left edge
         if x[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p]+box_length)
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
             y_periodic = np.append(y_periodic, y[p])
             z_periodic = np.append(z_periodic, z[p])
         # right edge
-        elif x[p] > box_length-buffer_length:
-            x_periodic = np.append(x_periodic, x[p]-box_length)
+        elif x[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
             y_periodic = np.append(y_periodic, y[p])
             z_periodic = np.append(z_periodic, z[p])
 
         # upper edge
         if y[p] < buffer_length:
             x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p]+box_length)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
             z_periodic = np.append(z_periodic, z[p])
         # lower edge
-        elif y[p] > box_length-buffer_length:
+        elif y[p] > boxsize-buffer_length:
             x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] - box_length)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
             z_periodic = np.append(z_periodic, z[p])
 
         # corners
         # top left
         if x[p] < buffer_length and y[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p]+box_length)
-            y_periodic = np.append(y_periodic, y[p]+box_length)
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
             z_periodic = np.append(z_periodic, z[p])
         # bottom left
-        elif x[p] < buffer_length and y[p] > box_length-buffer_length:
-            x_periodic = np.append(x_periodic, x[p]+box_length)
-            y_periodic = np.append(y_periodic, y[p]-box_length)
+        elif x[p] < buffer_length and y[p] > boxsize - buffer_length:
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
             z_periodic = np.append(z_periodic, z[p])
         # top right
-        elif x[p] > box_length-buffer_length and y[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p]-box_length)
-            y_periodic = np.append(y_periodic, y[p]+box_length)
+        elif x[p] > boxsize-buffer_length and y[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
             z_periodic = np.append(z_periodic, z[p])
         # bottom right
-        elif x[p] > box_length-buffer_length and y[p] > box_length-buffer_length:
-            x_periodic = np.append(x_periodic, x[p]-box_length)
-            y_periodic = np.append(y_periodic, y[p]-box_length)
+        elif x[p] > boxsize-buffer_length and y[p] > boxsize - buffer_length:
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
             z_periodic = np.append(z_periodic, z[p])
 
     return x_periodic, y_periodic, z_periodic
 
 
 def sigma_serial_cpu(
-    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, box_length
+    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, boxsize
 ):
     """
     sigma_cpu_serial(...)
-        Calculates the 2D (x-y) surface density at provided radius bins
+        Compute the 2D (x-y) surface density with derivatives for a periodic volume.
 
     Parameters
     ----------
@@ -93,19 +93,19 @@ def sigma_serial_cpu(
     wh_jac : array-like, shape(n_grads, n_pts)
         The array of weight gradients for the halos.
     xp, yp, zp : array-like, shape(n_pts,)
-        The arrays of positions, weights, and weight gradients for the particles.
+        The arrays of positions for the particles.
     rpbins : array-like, shape (n_rpbins+1,)
-        Array of radial bin edges. Note that this array is one longer than
-        the number of bins in the 'rp' (radial) direction.
-    box_length : float
-        The size of the periodic volume.
+        Array of bin edges in the `rp` direction. Note that this array is one
+        longer than the number of bins in the `rp` direction.
+    boxsize : float
+        The size of the total periodic volume.
 
     Returns
     -------
     sigma : array-like, shape(n_rpbins,)
-        The surface density at each bin specified by rpbins.
+        The surface density at each radial bin.
     sigma_grad : array-like, shape(n_grads, n_rpbins)
-        The surface density gradients at each bin specified by rpbins.
+        The gradients of the surface density.
     """
 
     # ensure the smallest bin is not zero
@@ -119,12 +119,12 @@ def sigma_serial_cpu(
                     np.square(rpbins[:-1], dtype=np.float64)), dtype=np.float64)
 
     rpmax = rpbins[-1]
-    pimax = np.ceil(box_length).astype(int)
+    pimax = np.ceil(boxsize).astype(int)
 
     n_threads = int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False)))
 
     # handle periodicity
-    xp_p, yp_p, zp_p = _copy_periodic_points_2D(xp, yp, zp, box_length, rpmax)
+    xp_p, yp_p, zp_p = _copy_periodic_points_2D(xp, yp, zp, boxsize, rpmax)
     n_parts = len(xp_p)
 
     # arrays to return
@@ -185,11 +185,11 @@ def sigma_serial_cpu(
 
 
 def sigma_mpi_kernel_cpu(
-    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, box_length
+    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, boxsize
 ):
     """
     sigma_mpi_kernel_cpu(...)
-        Calculates the 2D (x-y) surface density at provided radius bins
+        Per-process CPU kernel for MPI-parallel sigma (surface density) computation.
 
     Parameters
     ---------
@@ -198,20 +198,19 @@ def sigma_mpi_kernel_cpu(
     wh_jac : array-like, shape (n_grads, n_halos)
         The weight gradients for the halos.
     xp, yp, zp, : array-like, shape (n_particles,)
-        The arrays of positions, weights, and weight gradients for the particles.
+        The arrays of positions for the particles.
     rpbins : array-like, shape (n_rpbins+1,)
-        Array of radial bin edges. Note that this array is one longer than
-        the number of bins in the 'rp' (radial) direction.
-    box_length : float
+        Array of bin edges in the `rp` direction. Note that this array is one
+        longer than the number of bins in the `rp` (radial) direction.
+    boxsize: float
         The size of the total periodic volume.
 
     Returns
     -------
     sigma : array-like, shape(n_rpbins,)
-        The surface density at each bin specified by rpbins.
+        The surface density at each radial bin.
     sigma_grad_1st : array-like, shape(n_grads, n_rpbins)
-        The first term of surface density gradients at each bin specified by
-        rpbins.
+        The first term of the surface density gradients at each radial bin.
     """
 
     # set up sizes
@@ -221,7 +220,7 @@ def sigma_mpi_kernel_cpu(
 
     n_rpbins = len(rpbins) - 1
 
-    pimax = np.ceil(box_length).astype(int)
+    pimax = np.ceil(boxsize).astype(int)
 
     n_threads = int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False)))
 
@@ -272,20 +271,20 @@ def sigma_mpi_kernel_cpu(
 def delta_sigma_from_sigma(rpbins, sigma):
     """
     delta_sigma_from_sigma(...)
-        Calculates delta sigma based on a provided sigma array.
+        Compute delta sigma from sigma.
 
     Parameters
     ----------
     rpbins : array-like, shape(n_rpbins+1,)
-        Array of radial bin edges, note that this array is one longer than
-        the number of bins in the rp direction.
+        Array of radial bin edges in `rp`. Note that this array is one longer
+        than the number of bins in the `rp` direction.
     sigma : array-like, shape(n_rpbins,)
         The radially binned values of halo surface density.
 
     Returns
     -------
     delta_sigma : array-like, shape(n_rpbins,)
-        The radially binned surface mass density.
+        The radially binned excess surface mass density.
     """
 
     n_rpbins = len(sigma)
