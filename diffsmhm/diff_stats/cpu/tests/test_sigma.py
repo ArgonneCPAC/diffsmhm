@@ -4,14 +4,14 @@ from numpy.testing import assert_allclose
 import pytest
 
 from diffsmhm.diff_stats.cpu.sigma import (
-    sigma_cpu_serial,
+    sigma_serial_cpu,
     delta_sigma_from_sigma
 )
 from diffsmhm.testing import gen_mstar_data
 
 
 @pytest.mark.mpi_skip
-def test_sigma_cpu_serial_smoke():
+def test_sigma_serial_cpu_smoke():
     rng = np.random.RandomState(seed=42)
 
     # generate halo and particle locations
@@ -37,7 +37,7 @@ def test_sigma_cpu_serial_smoke():
     bins = np.linspace(0.1, 0.6, n_bins+1)
 
     # do calculation
-    sigma, sigma_grad = sigma_cpu_serial(
+    sigma, sigma_grad = sigma_serial_cpu(
         xh=xh, yh=yh, zh=zh, wh=wh, wh_jac=dwh,
         xp=xp, yp=yp, zp=zp,
         rpbins=bins, box_length=boxsize
@@ -67,7 +67,7 @@ def test_sigma_cpu_serial_derivs():
     parts_x = rng.uniform(0.0, boxsize, n_particles)
     parts_y = rng.uniform(0.0, boxsize, n_particles)
     parts_z = rng.uniform(0.0, boxsize, n_particles)
-    sigma, sigma_grad = sigma_cpu_serial(
+    sigma, sigma_grad = sigma_serial_cpu(
         xh=halos["x"],
         yh=halos["y"],
         zh=halos["z"],
@@ -83,7 +83,7 @@ def test_sigma_cpu_serial_derivs():
     eps = 1e-6
     for pind in range(halos["npars"]):
         w_p = halos["w"] + halos["w_jac"][pind, :] * eps
-        sigma_p, _ = sigma_cpu_serial(
+        sigma_p, _ = sigma_serial_cpu(
             xh=halos["x"],
             yh=halos["y"],
             zh=halos["z"],
@@ -97,7 +97,7 @@ def test_sigma_cpu_serial_derivs():
         )
 
         w_m = halos["w"] - halos["w_jac"][pind, :] * eps
-        sigma_m, _ = sigma_cpu_serial(
+        sigma_m, _ = sigma_serial_cpu(
             xh=halos["x"],
             yh=halos["y"],
             zh=halos["z"],
