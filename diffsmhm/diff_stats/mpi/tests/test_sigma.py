@@ -20,7 +20,7 @@ from diffsmhm.diff_stats.cuda.sigma import (
     sigma_mpi_kernel_cuda
 )
 from diffsmhm.diff_stats.cpu.sigma import (
-    sigma_cpu_serial,
+    sigma_serial_cpu,
     sigma_mpi_kernel_cpu
 )
 from diffsmhm.diff_stats.mpi.sigma import (
@@ -32,7 +32,7 @@ from diffsmhm.loader import wrap_to_local_volume_inplace
 
 
 def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
-    rng = numpy.random.RandomState(seed)
+    rng = np.random.RandomState(seed)
 
     halo_catalog = dict()
     particle_catalog = dict()
@@ -140,7 +140,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
                                 )
 
         # call serial version to check mpi
-        sigma_serial, sigma_grad_serial = sigma_cpu_serial(
+        sigma_serial, sigma_grad_serial = sigma_serial_cpu(
             xh=halo_cat_orig["x"],
             yh=halo_cat_orig["y"],
             zh=halo_cat_orig["z"],
@@ -221,7 +221,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
                                 )
 
         # call serial version to check mpi
-        sigma_serial, sigma_grad_serial = sigma_cpu_serial(
+        sigma_serial, sigma_grad_serial = sigma_serial_cpu(
             xh=halo_cat_orig["x"],
             yh=halo_cat_orig["y"],
             zh=halo_cat_orig["z"],
