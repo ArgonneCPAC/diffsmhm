@@ -79,7 +79,7 @@ def _copy_periodic_points_2D(x, y, z, box_length, buffer_length):
     return x_periodic, y_periodic, z_periodic
 
 
-def sigma_cpu_serial(
+def sigma_serial_cpu(
     *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, box_length
 ):
     """
@@ -178,7 +178,7 @@ def sigma_cpu_serial(
 
     sigma_grad = (
                     sigma_grad_1st - sigma_grad_2nd
-                 )/np.sum(wh, dtype=np.float64)
+                 ) / np.sum(wh, dtype=np.float64)
 
     # return
     return sigma_exp, sigma_grad
