@@ -54,7 +54,7 @@ def test_sigma_serial_cpu_smoke():
 
 
 @pytest.mark.mpi_skip
-def test_sigma_cpu_serial_derivs():
+def test_sigma_serial_cpu_derivs():
     boxsize = 100.0
     n_halos = 100
     n_particles = 1000
