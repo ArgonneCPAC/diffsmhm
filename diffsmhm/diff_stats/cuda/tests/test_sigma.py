@@ -14,7 +14,8 @@ def test_sigma_serial_cuda():
     lbox = 100.0
 
     n_bins = 10
-    rpmax = 5
+    rpmax = 5.0
+    zmax = 40.0
 
     seed = 42
 
@@ -40,6 +41,7 @@ def test_sigma_serial_cuda():
         yp=particle_cat["y"],
         zp=particle_cat["z"],
         rpbins=rpbins,
+        zmax=zmax,
         boxsize=lbox
     )
 
@@ -53,6 +55,7 @@ def test_sigma_serial_cuda():
         yp=particle_cat["y"],
         zp=particle_cat["z"],
         rpbins=rpbins,
+        zmax=zmax,
         boxsize=lbox
     )
 

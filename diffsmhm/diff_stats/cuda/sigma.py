@@ -3,7 +3,204 @@ from numba import cuda
 
 import cmath
 
-from diffsmhm.diff_stats.cpu.sigma import _copy_periodic_points_2D
+
+def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
+    # copy particles within buffer_length of an edge in XY
+    n_points = len(x)
+
+    # setup position copies
+    x_periodic = np.copy(x)
+    y_periodic = np.copy(y)
+    z_periodic = np.copy(z)
+
+    for p in range(n_points):
+        # if not near edge continue
+        if (
+            not (x[p] < buffer_length or x[p] > boxsize-buffer_length) and
+            not (y[p] < buffer_length or y[p] > boxsize-buffer_length) and
+            not (z[p] < buffer_length or z[p] > boxsize-buffer_length)
+        ):
+            continue
+
+        # 6 edges
+
+        # x low edge
+        if x[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p])
+        # x high edge
+        elif x[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p])
+
+        # y low edge
+        if y[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p])
+        # y high edge
+        elif y[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p])
+
+        # z low edge
+        if z[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+        # z high edge
+        elif z[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+
+        # 8 corners
+
+        # "bottom" corners (z low)
+        # x low, y low
+        if (
+                x[p] < buffer_length and
+                y[p] < buffer_length and
+                z[p] < buffer_length
+        ):
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+        # x low, y high
+        elif (
+                x[p] < buffer_length and
+                y[p] > boxsize-buffer_length and
+                z[p] < buffer_length
+        ):
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+        # x high, y low
+        elif (
+                x[p] > boxsize-buffer_length and
+                y[p] < buffer_length and
+                z[p] < buffer_length
+        ):
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+        # x high, y high
+        elif (
+                x[p] > boxsize-buffer_length and
+                y[p] > boxsize-buffer_length and
+                z[p] < buffer_length
+        ):
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+
+        # "top" corners (z high)
+        # x low, y low
+        elif (
+                x[p] < buffer_length and
+                y[p] < buffer_length and
+                z[p] > boxsize-buffer_length
+        ):
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+        # x low, y high
+        elif (
+                x[p] < buffer_length and
+                y[p] > boxsize-buffer_length and
+                z[p] > boxsize-buffer_length
+        ):
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+        # x high, y low
+        elif (
+                x[p] > boxsize-buffer_length and
+                y[p] < buffer_length and
+                z[p] > boxsize-buffer_length
+        ):
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+        # x high, y high
+        elif (
+            x[p] > boxsize-buffer_length and
+            y[p] > boxsize-buffer_length and
+            z[p] > boxsize-buffer_length
+        ):
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+
+        # 12 egdges
+
+        # x low, y low
+        if x[p] < buffer_length and y[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p])
+        # x high, y low
+        if x[p] > boxsize-buffer_length and y[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p])
+        # x low, y high
+        if x[p] < buffer_length and y[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p])
+        # x high, y high
+        if x[p] > boxsize-buffer_length and y[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p])
+
+        # y low, z low
+        if y[p] < buffer_length and z[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+        # y high, z low
+        if y[p] > boxsize-buffer_length and z[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+        # y low, z high
+        if y[p] < buffer_length and z[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p] + boxsize)
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+        # y high, z high
+        if y[p] > boxsize-buffer_length and z[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p])
+            y_periodic = np.append(y_periodic, y[p] - boxsize)
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+
+        # x low, z low
+        if x[p] < buffer_length and z[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+        # x high, z low
+        if x[p] > boxsize-buffer_length and z[p] < buffer_length:
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p] + boxsize)
+        # x low, z high
+        if x[p] < buffer_length and z[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p] + boxsize)
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+        # x high, z high
+        if x[p] > boxsize-buffer_length and z[p] > boxsize-buffer_length:
+            x_periodic = np.append(x_periodic, x[p] - boxsize)
+            y_periodic = np.append(y_periodic, y[p])
+            z_periodic = np.append(z_periodic, z[p] - boxsize)
+
+    return x_periodic, y_periodic, z_periodic
 
 
 @cuda.jit(fastmath=False)
@@ -12,6 +209,7 @@ def _count_particles(
     wh, wh_jac, n_grads,
     xp, yp, zp,
     rpbins,
+    zmax,
     result, result_grad
 ):
 
@@ -26,7 +224,11 @@ def _count_particles(
     for i in range(start, n_halos, stride):
         # for each particle
         for j in range(n_particles):
-            # calculate distance
+            # ensure Z distance is within range
+            if abs(zh[i] - zp[j]) > zmax:
+                continue
+
+            # calculate XY distance
             pdist = cmath.sqrt((xh[i]-xp[j])*(xh[i]-xp[j]) +
                                (yh[i]-yp[j])*(yh[i]-yp[j]))
 
@@ -46,6 +248,7 @@ def sigma_serial_cuda(
     wh_jac,
     xp, yp, zp,
     rpbins,
+    zmax,
     boxsize,
     threads=32,
     blocks=512
@@ -65,6 +268,9 @@ def sigma_serial_cuda(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges, note that this array is one longer than the
         number of bins in the 'rp' (xy radial) direction.
+    zmax : float
+        Maximum distance to integrate over in the z direction. Note this should
+        be a whole number due to the unit binning of Corrfunc.
     boxsize: float
         Length of the periodic volume, not used in the cuda kernel but included
         for consistency with CPU versions.
@@ -88,9 +294,11 @@ def sigma_serial_cuda(
                     np.square(rpbins[:-1], dtype=np.float64))
 
     rpmax = rpbins[-1]
+    periodic_buffer = max(rpmax, zmax)
+    print("PB:", periodic_buffer, flush=True)
 
     # handle periodicity
-    xp_p, yp_p, zp_p = _copy_periodic_points_2D(xp, yp, zp, boxsize, rpmax)
+    xp_p, yp_p, zp_p = _copy_periodic_points_3D(xp, yp, zp, boxsize, periodic_buffer)
 
     # set up device arrays
     sigma_device = cuda.to_device(np.zeros(n_rpbins, dtype=np.float64))
@@ -102,6 +310,7 @@ def sigma_serial_cuda(
                                         xh, yh, zh, wh, wh_jac, n_grads,
                                         xp_p, yp_p, zp_p,
                                         rpbins,
+                                        zmax,
                                         sigma_device,
                                         sigma_grad_1st_device
                                      )
@@ -138,6 +347,7 @@ def sigma_mpi_kernel_cuda(
     wh_jac,
     xp, yp, zp,
     rpbins,
+    zmax,
     boxsize,
     threads=32,
     blocks=512
@@ -157,6 +367,9 @@ def sigma_mpi_kernel_cuda(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges, Note that this array is one longer than the
         number of bins in the 'rp' (xy radial) direction.
+    zmax : float
+        Maximum distance to integrate over in the z direction. Note this should
+        be a whole number due to the unit binning of Corrfunc.
     boxsize: float
         Length of the periodic volume, not used in the cuda kernel but included
         for consistency with CPU versions.
@@ -184,6 +397,7 @@ def sigma_mpi_kernel_cuda(
                                         xh, yh, zh, wh, wh_jac, n_grads,
                                         xp, yp, zp,
                                         rpbins,
+                                        zmax,
                                         sigma_device,
                                         sigma_grad_1st_device
                                      )
