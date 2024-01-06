@@ -15,72 +15,8 @@ except ImportError:
     N_RANKS = 1
 
 
-def _copy_periodic_points_2D(x, y, z, boxsize, buffer_length):
-    # copy particles within buffer_length of an edge in XY
-    n_points = len(x)
-
-    # setup position copies
-    x_periodic = np.copy(x)
-    y_periodic = np.copy(y)
-    z_periodic = np.copy(z)
-
-    for p in range(n_points):
-        # if not near edge continue
-        if (
-            not (x[p] < buffer_length or x[p] > boxsize-buffer_length) and
-            not (y[p] < buffer_length or y[p] > boxsize-buffer_length)
-           ):
-            continue
-
-        # left edge
-        if x[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p])
-        # right edge
-        elif x[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p])
-
-        # upper edge
-        if y[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p])
-        # lower edge
-        elif y[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p])
-
-        # corners
-        # top left
-        if x[p] < buffer_length and y[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p])
-        # bottom left
-        elif x[p] < buffer_length and y[p] > boxsize - buffer_length:
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p])
-        # top right
-        elif x[p] > boxsize-buffer_length and y[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p])
-        # bottom right
-        elif x[p] > boxsize-buffer_length and y[p] > boxsize - buffer_length:
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p])
-
-    return x_periodic, y_periodic, z_periodic
-
-
 def sigma_serial_cpu(
-    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, boxsize
+    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, zmax, boxsize
 ):
     """
     sigma_cpu_serial(...)
@@ -97,6 +33,9 @@ def sigma_serial_cpu(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of bin edges in the `rp` direction. Note that this array is one
         longer than the number of bins in the `rp` direction.
+    zmax : float
+        Maximum distance to integrate over in the z direction. Note this should
+        be a whole number due to the unit binning of Corrfunc.
     boxsize : float
         The size of the total periodic volume.
 
@@ -118,14 +57,9 @@ def sigma_serial_cpu(
     rads = np.array(np.pi * (np.square(rpbins[1:], dtype=np.float64) -
                     np.square(rpbins[:-1], dtype=np.float64)), dtype=np.float64)
 
-    rpmax = rpbins[-1]
-    pimax = np.ceil(boxsize).astype(int)
-
     n_threads = int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False)))
 
-    # handle periodicity
-    xp_p, yp_p, zp_p = _copy_periodic_points_2D(xp, yp, zp, boxsize, rpmax)
-    n_parts = len(xp_p)
+    n_parts = len(xp)
 
     # arrays to return
     sigma_grad = np.zeros((n_grads, n_rpbins), dtype=np.float64)
@@ -134,16 +68,16 @@ def sigma_serial_cpu(
     res = Corrfunc.theory.DDrppi(
         autocorr=False,
         nthreads=n_threads,
-        pimax=pimax,
+        pimax=zmax,
         binfile=rpbins,
         X1=xh, Y1=yh, Z1=zh, weights1=wh,
-        periodic=False,
-        X2=xp_p, Y2=yp_p, Z2=zp_p, weights2=np.ones(n_parts, dtype=np.float64),
+        periodic=True, boxsize=boxsize,
+        X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.float64),
         weight_type="pair_product"
     )
     _dd = (
-        res["weightavg"].reshape((n_rpbins, pimax)) *
-        res["npairs"].reshape((n_rpbins, pimax))
+        res["weightavg"].reshape((n_rpbins, int(zmax))) *
+        res["npairs"].reshape((n_rpbins, int(zmax)))
     ).astype(np.float64)
     sigma_exp = np.sum(_dd, axis=1, dtype=np.float64)
 
@@ -158,16 +92,16 @@ def sigma_serial_cpu(
         res_grad = Corrfunc.theory.DDrppi(
             autocorr=False,
             nthreads=n_threads,
-            pimax=pimax,
+            pimax=zmax,
             binfile=rpbins,
             X1=xh, Y1=yh, Z1=zh, weights1=wh_jac[g, :],
-            periodic=False,
-            X2=xp_p, Y2=yp_p, Z2=zp_p, weights2=np.ones(n_parts, dtype=np.float64),
+            periodic=True, boxsize=boxsize,
+            X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.float64),
             weight_type="pair_product"
         )
         _dd_grad = (
-            res_grad["weightavg"].reshape((n_rpbins, pimax)) *
-            res["npairs"].reshape((n_rpbins, pimax))
+            res_grad["weightavg"].reshape((n_rpbins, int(zmax))) *
+            res["npairs"].reshape((n_rpbins, int(zmax)))
         ).astype(np.float64)
         sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1, dtype=np.float64) / rads
 
@@ -185,7 +119,7 @@ def sigma_serial_cpu(
 
 
 def sigma_mpi_kernel_cpu(
-    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, boxsize
+    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, zmax, boxsize
 ):
     """
     sigma_mpi_kernel_cpu(...)
@@ -202,6 +136,9 @@ def sigma_mpi_kernel_cpu(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of bin edges in the `rp` direction. Note that this array is one
         longer than the number of bins in the `rp` (radial) direction.
+    zmax : float
+        Maximum distance to integrate over in the z direction. Note this should
+        be a whole number due to the unit binning of Corrfunc.
     boxsize: float
         The size of the total periodic volume.
 
@@ -220,8 +157,6 @@ def sigma_mpi_kernel_cpu(
 
     n_rpbins = len(rpbins) - 1
 
-    pimax = np.ceil(boxsize).astype(int)
-
     n_threads = int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False)))
 
     # Note: 2nd term of gradient needs to be calculated with the finalized sigma
@@ -230,7 +165,7 @@ def sigma_mpi_kernel_cpu(
     res = Corrfunc.theory.DDrppi(
         autocorr=False,
         nthreads=n_threads,
-        pimax=pimax,
+        pimax=zmax,
         binfile=rpbins,
         X1=xh, Y1=yh, Z1=zh, weights1=wh,
         periodic=False,
@@ -239,8 +174,8 @@ def sigma_mpi_kernel_cpu(
     )
 
     _dd = (
-        res["weightavg"].reshape((n_rpbins, pimax)) *
-        res["npairs"].reshape((n_rpbins, pimax))
+        res["weightavg"].reshape((n_rpbins, int(zmax))) *
+        res["npairs"].reshape((n_rpbins, int(zmax)))
     ).astype(np.float64)
     sigma_exp = np.sum(_dd, axis=1)
 
@@ -250,7 +185,7 @@ def sigma_mpi_kernel_cpu(
         res_grad = Corrfunc.theory.DDrppi(
             autocorr=False,
             nthreads=n_threads,
-            pimax=pimax,
+            pimax=zmax,
             binfile=rpbins,
             X1=xh, Y1=yh, Z1=zh, weights1=wh_jac[g, :],
             periodic=False,
@@ -258,8 +193,8 @@ def sigma_mpi_kernel_cpu(
             weight_type="pair_product"
         )
         _dd_grad = (
-            res_grad["weightavg"].reshape((n_rpbins, pimax)) *
-            res["npairs"].reshape((n_rpbins, pimax))
+            res_grad["weightavg"].reshape((n_rpbins, int(zmax))) *
+            res["npairs"].reshape((n_rpbins, int(zmax)))
         ).astype(np.float64)
         rads = np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
         sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1) / rads

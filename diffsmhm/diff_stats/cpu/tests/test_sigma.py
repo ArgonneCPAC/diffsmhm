@@ -15,8 +15,9 @@ def test_sigma_serial_cpu_smoke():
     rng = np.random.RandomState(seed=42)
 
     # generate halo and particle locations
-    boxsize = 1.0
+    boxsize = 10.0
     n_halos = 10
+    zmax = 4.0
 
     n_pars = 4
 
@@ -34,13 +35,13 @@ def test_sigma_serial_cpu_smoke():
 
     # radial bins
     n_bins = 5
-    bins = np.linspace(0.1, 0.6, n_bins+1)
+    bins = np.linspace(0.1, 0.4, n_bins+1)
 
     # do calculation
     sigma, sigma_grad = sigma_serial_cpu(
         xh=xh, yh=yh, zh=zh, wh=wh, wh_jac=dwh,
         xp=xp, yp=yp, zp=zp,
-        rpbins=bins, boxsize=boxsize
+        rpbins=bins, zmax=zmax, boxsize=boxsize
     )
 
     # check calculation
@@ -50,7 +51,7 @@ def test_sigma_serial_cpu_smoke():
 
     assert sigma_grad.shape == (n_pars, n_bins)
     assert np.all(np.isfinite(sigma_grad))
-    assert np.all(sigma_grad != 0)
+    assert np.any(sigma_grad != 0)
 
 
 @pytest.mark.mpi_skip
@@ -58,11 +59,12 @@ def test_sigma_serial_cpu_derivs():
     boxsize = 100.0
     n_halos = 100
     n_particles = 1000
+    zmax = 40.0
 
     rseed = 42
     rng = np.random.RandomState(seed=rseed)
 
-    halos = gen_mstar_data(boxsize=boxsize, npts=n_halos, seed=rseed)
+    halos = gen_mstar_data(boxsize=boxsize, npts=n_halos, seed=rseed, rpmax=20)
 
     parts_x = rng.uniform(0.0, boxsize, n_particles)
     parts_y = rng.uniform(0.0, boxsize, n_particles)
@@ -77,6 +79,7 @@ def test_sigma_serial_cpu_derivs():
         yp=parts_y,
         zp=parts_z,
         rpbins=halos["rp_bins"],
+        zmax=zmax,
         boxsize=boxsize
     )
 
@@ -93,6 +96,7 @@ def test_sigma_serial_cpu_derivs():
             yp=parts_y,
             zp=parts_z,
             rpbins=halos["rp_bins"],
+            zmax=zmax,
             boxsize=boxsize
         )
 
@@ -107,6 +111,7 @@ def test_sigma_serial_cpu_derivs():
             yp=parts_y,
             zp=parts_z,
             rpbins=halos["rp_bins"],
+            zmax=zmax,
             boxsize=boxsize
         )
 

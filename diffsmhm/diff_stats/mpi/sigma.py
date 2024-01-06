@@ -18,6 +18,7 @@ def sigma_mpi_comp_and_reduce(
     xp, yp, zp,
     inside_subvol,
     rpbins,
+    zmax,
     boxsize,
     kernel_func
 ):
@@ -38,6 +39,9 @@ def sigma_mpi_comp_and_reduce(
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges. Note that this array is one longer than the
         number of bins in the 'rp' (radial) direction.
+    zmax : float
+        Maximum distance to integrate over in the z direction. Note this should
+        be a whole number due to the unit binning of Corrfunc.
     boxsize: float
         Total size of the periodic volume.
     kernel_func : function
@@ -74,6 +78,7 @@ def sigma_mpi_comp_and_reduce(
         wh_jac=wh_jac_sv,
         xp=xp, yp=yp, zp=zp,
         rpbins=rpbins,
+        zmax=zmax,
         boxsize=boxsize
     )
 

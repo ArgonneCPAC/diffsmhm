@@ -66,30 +66,30 @@ def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
 
 
 def _distribute_data(partition, lbox, data, lov):
-    data = mpipartition.distribute(partition, lbox, data, ["x", "y"])
-    data["rank"] = np.zeros_like(data["x"], dtype=np.int32) + RANK
+    data_rank = mpipartition.distribute(partition, lbox, data, ["x", "y", "z"])
+    data_rank["rank"] = np.zeros_like(data_rank["x"], dtype=np.int32) + RANK
 
-    data = mpipartition.overload(partition, lbox, data, lov, ["x", "y"])
-    data["_inside_subvol"] = data["rank"] == RANK
+    data_rank = mpipartition.overload(partition, lbox, data_rank, lov, ["x", "y", "z"])
+    data_rank["_inside_subvol"] = data_rank["rank"] == RANK
 
     center = lbox * (
         np.array(partition.extent) / 2.0
         + np.array(partition.origin)
     )
 
-    # currently sigma is only 2D so cannot wrap 'z'
-    wrap_to_local_volume_inplace(data["x"], center[0], lbox)
-    wrap_to_local_volume_inplace(data["y"], center[1], lbox)
+    wrap_to_local_volume_inplace(data_rank["x"], center[0], lbox)
+    wrap_to_local_volume_inplace(data_rank["y"], center[1], lbox)
+    wrap_to_local_volume_inplace(data_rank["z"], center[2], lbox)
 
-    return data
+    return data_rank
 
 
 @pytest.mark.mpi
 def test_sigma_mpi_comp_and_reduce_cpu():
-    lbox = 100.0
+    lbox = 250.0
 
     n_bins = 10
-    rpmax = 5
+    rpmax = 10
 
     seed = 42
 
@@ -98,7 +98,8 @@ def test_sigma_mpi_comp_and_reduce_cpu():
 
     n_pars = 3
 
-    lov = rpmax
+    zmax = 40.0
+    lov = max(rpmax, zmax)
 
     rpbins = np.linspace(0.1, rpmax, n_bins+1)
 
@@ -109,12 +110,12 @@ def test_sigma_mpi_comp_and_reduce_cpu():
     # distribute and overload
     # note: halos don't need to be overloaded for this measurement, but
     # 	    we do it here to test handling the case where they are
-    partition = mpipartition.Partition(2)
+    partition = mpipartition.Partition()
 
     halo_catalog = _distribute_data(partition, lbox, halo_cat_orig, lov)
     particle_catalog = _distribute_data(partition, lbox, particle_cat_orig, lov)
 
-    # now we stack gradients
+    # stack gradients
     halo_dw1 = np.stack([halo_catalog["dw1_%d" % h] for h in range(n_pars)], axis=0)
 
     sigma_mpi, sigma_grad_mpi = sigma_mpi_comp_and_reduce(
@@ -128,6 +129,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
         zp=particle_catalog["z"],
         inside_subvol=halo_catalog["_inside_subvol"],
         rpbins=rpbins,
+        zmax=zmax,
         boxsize=lbox,
         kernel_func=sigma_mpi_kernel_cpu
     )
@@ -150,6 +152,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
             yp=particle_cat_orig["y"],
             zp=particle_cat_orig["z"],
             rpbins=rpbins,
+            zmax=zmax,
             boxsize=lbox
         )
 
@@ -171,7 +174,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
 
 @pytest.mark.mpi
 def test_sigma_mpi_comp_and_reduce_cuda():
-    lbox = 100
+    lbox = 250.0
 
     n_bins = 10
     rpmax = 5
@@ -183,15 +186,17 @@ def test_sigma_mpi_comp_and_reduce_cuda():
 
     n_pars = 3
 
-    lov = rpmax
     rpbins = np.linspace(0.1, rpmax, n_bins+1)
+
+    zmax = 40.0
+    lov = max(zmax, rpmax)
 
     # get data
     halo_cat_orig, particle_cat_orig = _gen_data(n_halos, n_particles, n_pars,
                                                  lbox, seed)
 
     # distribute and overload
-    partition = mpipartition.Partition(2)
+    partition = mpipartition.Partition()
 
     halo_catalog = _distribute_data(partition, lbox, halo_cat_orig, lov)
     particle_catalog = _distribute_data(partition, lbox, particle_cat_orig, lov)
@@ -210,6 +215,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
         inside_subvol=halo_catalog["_inside_subvol"],
         boxsize=lbox,
         rpbins=rpbins,
+        zmax=zmax,
         kernel_func=sigma_mpi_kernel_cuda
     )
 
@@ -231,6 +237,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
             yp=particle_cat_orig["y"],
             zp=particle_cat_orig["z"],
             rpbins=rpbins,
+            zmax=zmax,
             boxsize=lbox
         )
 
