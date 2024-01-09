@@ -34,8 +34,10 @@ def sigma_serial_cpu(
         Array of bin edges in the `rp` direction. Note that this array is one
         longer than the number of bins in the `rp` direction.
     zmax : float
-        Maximum distance to integrate over in the z direction. Note this should
-        be a whole number due to the unit binning of Corrfunc.
+        Maximum separation in the z direction. Particles with z distance less
+        than zmax from a given halo are included in surface density calculations
+        for that halo. Note this should be a whole number due to the unit
+        binning of Corrfunc.
     boxsize : float
         The size of the total periodic volume.
 
@@ -137,8 +139,10 @@ def sigma_mpi_kernel_cpu(
         Array of bin edges in the `rp` direction. Note that this array is one
         longer than the number of bins in the `rp` (radial) direction.
     zmax : float
-        Maximum distance to integrate over in the z direction. Note this should
-        be a whole number due to the unit binning of Corrfunc.
+        Maximum separation in the z direction. Particles with z distance less
+        than zmax from a given halo are included in surface density calculations
+        for that halo. Note this should be a whole number due to the unit
+        binning of Corrfunc.
     boxsize: float
         The size of the total periodic volume.
 
