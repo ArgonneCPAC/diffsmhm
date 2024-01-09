@@ -8,10 +8,10 @@ def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
     # copy particles within buffer_length of an edge in XY
     n_points = len(x)
 
-    # setup position copies
-    x_periodic = np.copy(x)
-    y_periodic = np.copy(y)
-    z_periodic = np.copy(z)
+    # setup buffer point arrays
+    x_copied_points = []
+    y_copied_points = []
+    z_copied_points = []
 
     for p in range(n_points):
         # if not near edge continue
@@ -26,36 +26,36 @@ def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
 
         # x low edge
         if x[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p])
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p])
+            z_copied_points.append(z[p])
         # x high edge
         elif x[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p])
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p])
+            z_copied_points.append(z[p])
 
         # y low edge
         if y[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p])
+            x_copied_points.append(x[p])
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p])
         # y high edge
         elif y[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p])
+            x_copied_points.append(x[p])
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p])
 
         # z low edge
         if z[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p])
+            y_copied_points.append(y[p])
+            z_copied_points.append(z[p] + boxsize)
         # z high edge
         elif z[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p])
+            y_copied_points.append(y[p])
+            z_copied_points.append(z[p] - boxsize)
 
         # 8 corners
 
@@ -66,36 +66,36 @@ def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
                 y[p] < buffer_length and
                 z[p] < buffer_length
         ):
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p] + boxsize)
         # x low, y high
         elif (
                 x[p] < buffer_length and
                 y[p] > boxsize-buffer_length and
                 z[p] < buffer_length
         ):
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p] + boxsize)
         # x high, y low
         elif (
                 x[p] > boxsize-buffer_length and
                 y[p] < buffer_length and
                 z[p] < buffer_length
         ):
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p] + boxsize)
         # x high, y high
         elif (
                 x[p] > boxsize-buffer_length and
                 y[p] > boxsize-buffer_length and
                 z[p] < buffer_length
         ):
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p] + boxsize)
 
         # "top" corners (z high)
         # x low, y low
@@ -104,101 +104,106 @@ def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
                 y[p] < buffer_length and
                 z[p] > boxsize-buffer_length
         ):
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p] - boxsize)
         # x low, y high
         elif (
                 x[p] < buffer_length and
                 y[p] > boxsize-buffer_length and
                 z[p] > boxsize-buffer_length
         ):
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p] - boxsize)
         # x high, y low
         elif (
                 x[p] > boxsize-buffer_length and
                 y[p] < buffer_length and
                 z[p] > boxsize-buffer_length
         ):
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p] - boxsize)
         # x high, y high
         elif (
             x[p] > boxsize-buffer_length and
             y[p] > boxsize-buffer_length and
             z[p] > boxsize-buffer_length
         ):
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p] - boxsize)
 
         # 12 egdges
 
         # x low, y low
         if x[p] < buffer_length and y[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p])
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p])
         # x high, y low
         if x[p] > boxsize-buffer_length and y[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p])
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p])
         # x low, y high
         if x[p] < buffer_length and y[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p])
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p])
         # x high, y high
         if x[p] > boxsize-buffer_length and y[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p])
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p])
 
         # y low, z low
         if y[p] < buffer_length and z[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p])
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p] + boxsize)
         # y high, z low
         if y[p] > boxsize-buffer_length and z[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p])
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p] + boxsize)
         # y low, z high
         if y[p] < buffer_length and z[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] + boxsize)
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p])
+            y_copied_points.append(y[p] + boxsize)
+            z_copied_points.append(z[p] - boxsize)
         # y high, z high
         if y[p] > boxsize-buffer_length and z[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p])
-            y_periodic = np.append(y_periodic, y[p] - boxsize)
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p])
+            y_copied_points.append(y[p] - boxsize)
+            z_copied_points.append(z[p] - boxsize)
 
         # x low, z low
         if x[p] < buffer_length and z[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p])
+            z_copied_points.append(z[p] + boxsize)
         # x high, z low
         if x[p] > boxsize-buffer_length and z[p] < buffer_length:
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p] + boxsize)
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p])
+            z_copied_points.append(z[p] + boxsize)
         # x low, z high
         if x[p] < buffer_length and z[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p] + boxsize)
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p] + boxsize)
+            y_copied_points.append(y[p])
+            z_copied_points.append(z[p] - boxsize)
         # x high, z high
         if x[p] > boxsize-buffer_length and z[p] > boxsize-buffer_length:
-            x_periodic = np.append(x_periodic, x[p] - boxsize)
-            y_periodic = np.append(y_periodic, y[p])
-            z_periodic = np.append(z_periodic, z[p] - boxsize)
+            x_copied_points.append(x[p] - boxsize)
+            y_copied_points.append(y[p])
+            z_copied_points.append(z[p] - boxsize)
+
+    # combine and return
+    x_periodic = np.append(x, x_copied_points)
+    y_periodic = np.append(y, y_copied_points)
+    z_periodic = np.append(z, z_copied_points)
 
     return x_periodic, y_periodic, z_periodic
 
@@ -239,7 +244,7 @@ def _count_particles(
                     # and for gradients
                     for g in range(n_grads):
                         cuda.atomic.add(result_grad, (g, r), wh_jac[g, i])
-                    continue
+                    break
 
 
 def sigma_serial_cuda(
@@ -269,8 +274,10 @@ def sigma_serial_cuda(
         Array of radial bin edges, note that this array is one longer than the
         number of bins in the 'rp' (xy radial) direction.
     zmax : float
-        Maximum distance to integrate over in the z direction. Note this should
-        be a whole number due to the unit binning of Corrfunc.
+        Maximum separation in the z direction. Particles with z distance less
+        than zmax from a given halo are included in surface density calculations
+        for that halo. Note this should be a whole number due to the unit
+        binning of Corrfunc.
     boxsize: float
         Length of the periodic volume, not used in the cuda kernel but included
         for consistency with CPU versions.
@@ -368,8 +375,10 @@ def sigma_mpi_kernel_cuda(
         Array of radial bin edges, Note that this array is one longer than the
         number of bins in the 'rp' (xy radial) direction.
     zmax : float
-        Maximum distance to integrate over in the z direction. Note this should
-        be a whole number due to the unit binning of Corrfunc.
+        Maximum separation in the z direction. Particles with z distance less
+        than zmax from a given halo are included in surface density calculations
+        for that halo. Note this should be a whole number due to the unit
+        binning of Corrfunc.
     boxsize: float
         Length of the periodic volume, not used in the cuda kernel but included
         for consistency with CPU versions.
