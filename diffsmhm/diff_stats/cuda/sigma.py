@@ -276,8 +276,7 @@ def sigma_serial_cuda(
     zmax : float
         Maximum separation in the z direction. Particles with z distance less
         than zmax from a given halo are included in surface density calculations
-        for that halo. Note this should be a whole number due to the unit
-        binning of Corrfunc.
+        for that halo.
     boxsize: float
         Length of the periodic volume, not used in the cuda kernel but included
         for consistency with CPU versions.
@@ -377,8 +376,7 @@ def sigma_mpi_kernel_cuda(
     zmax : float
         Maximum separation in the z direction. Particles with z distance less
         than zmax from a given halo are included in surface density calculations
-        for that halo. Note this should be a whole number due to the unit
-        binning of Corrfunc.
+        for that halo.
     boxsize: float
         Length of the periodic volume, not used in the cuda kernel but included
         for consistency with CPU versions.
