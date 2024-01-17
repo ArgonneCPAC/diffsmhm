@@ -13,7 +13,7 @@ __all__ = ("satellite_disruption_probability", "disruption_probability")
 DEFAULT_PARAM_VALUES = OrderedDict(
     satmerg_logmhost_crit=13.5,
     satmerg_logmhost_k=10 ** 0.5,
-    satmerg_logvr_crit_dwarfs=-1,
+    satmerg_logvr_crit_dwarfs=-1.0,
     satmerg_logvr_crit_clusters=-0.7,
     satmerge_logvr_k=10 ** 0.5,
 )
