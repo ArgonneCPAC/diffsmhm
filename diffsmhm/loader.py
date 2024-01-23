@@ -424,7 +424,7 @@ def load_and_chop_data_bolshoi_planck(
     displ = displ[RANK]
 
     for key in parts.keys():
-        parts[key] = parts[key][displ:displ:rank_count]
+        parts[key] = parts[key][displ:displ+rank_count]
 
     # chop the particle catalog
     parts = mpipartition.distribute(partition, box_length, parts,
