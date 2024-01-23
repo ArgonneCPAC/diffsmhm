@@ -207,7 +207,7 @@ def sigma_mpi_kernel_cpu(
     return sigma_exp, sigma_grad_1st
 
 
-def delta_sigma_from_sigma(sigma, sigma_grad, rpbins, zmax):
+def delta_sigma_from_sigma(sigma, sigma_grad, rpbins):
     """
     delta_sigma_from_sigma(...)
         Compute delta sigma from sigma.
@@ -221,8 +221,6 @@ def delta_sigma_from_sigma(sigma, sigma_grad, rpbins, zmax):
     rpbins : array-like, shape(n_rpbins+1,)
         Array of radial bin edges in `rp`. Note that this array is one longer
         than the number of bins in the `rp` direction.
-    zmax : float
-        Maximum separation in the `z` direction that was used to calculate sigma.
     Returns
     -------
     delta_sigma : array-like, shape(n_rpbins,)
@@ -237,7 +235,7 @@ def delta_sigma_from_sigma(sigma, sigma_grad, rpbins, zmax):
     delta_sigma_grad = np.empty((n_params, n_rpbins), dtype=np.float64)
 
     for i in range(n_rpbins):
-        interior_vol = (np.pi * np.square(rpbins[i]) * zmax)
+        interior_vol = np.pi * np.square(rpbins[i])
 
         interior_sigma = np.sum(sigma[:i]) / interior_vol
         delta_sigma[i] = interior_sigma - sigma[i]
