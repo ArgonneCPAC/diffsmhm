@@ -13,9 +13,9 @@ __all__ = ("satellite_disruption_probability", "disruption_probability")
 DEFAULT_PARAM_VALUES = OrderedDict(
     satmerg_logmhost_crit=13.5,
     satmerg_logmhost_k=10 ** 0.5,
-    satmerg_logvr_crit_dwarfs=-1,
+    satmerg_logvr_crit_dwarfs=-1.0,
     satmerg_logvr_crit_clusters=-0.7,
-    satmerge_logvr_k=10 ** 0.5,
+    satmerg_logvr_k=10 ** 0.5,
 )
 
 
@@ -24,7 +24,7 @@ PARAM_BOUNDS = OrderedDict(
     satmerg_logmhost_k=(0, 10),
     satmerg_logvr_crit_dwarfs=(-2, 0),
     satmerg_logvr_crit_clusters=(-2, 0),
-    satmerge_logvr_k=(0, 10),
+    satmerg_logvr_k=(0, 10),
 )
 
 
@@ -36,7 +36,7 @@ def disruption_probability(
     satmerg_logmhost_k=None,
     satmerg_logvr_crit_dwarfs=None,
     satmerg_logvr_crit_clusters=None,
-    satmerge_logvr_k=None,
+    satmerg_logvr_k=None,
 ):
     """Disruption probability of (sub)halos as a function of halo properties.
 
@@ -57,7 +57,7 @@ def disruption_probability(
         Disruption cutoff in log10(Vmax/Vmpeak) in dwarf-mass host halos
     satmerg_logvr_crit_clusters : float, optional
         Disruption cutoff in log10(Vmax/Vmpeak) in cluster-mass host halos
-    satmerge_logvr_k : float, optional
+    satmerg_logvr_k : float, optional
         Steepness of the sigmoid in log10(Vmax/Vmpeak)
 
     Returns
@@ -90,10 +90,10 @@ def disruption_probability(
         if satmerg_logvr_crit_clusters is None
         else satmerg_logvr_crit_clusters
     )
-    satmerge_logvr_k = (
-        DEFAULT_PARAM_VALUES["satmerge_logvr_k"]
-        if satmerge_logvr_k is None
-        else satmerge_logvr_k
+    satmerg_logvr_k = (
+        DEFAULT_PARAM_VALUES["satmerg_logvr_k"]
+        if satmerg_logvr_k is None
+        else satmerg_logvr_k
     )
 
     params = np.array(
@@ -102,7 +102,7 @@ def disruption_probability(
             satmerg_logmhost_k,
             satmerg_logvr_crit_dwarfs,
             satmerg_logvr_crit_clusters,
-            satmerge_logvr_k,
+            satmerg_logvr_k,
         ]
     )
 
@@ -118,7 +118,7 @@ def satellite_disruption_probability(
     satmerg_logmhost_k=None,
     satmerg_logvr_crit_dwarfs=None,
     satmerg_logvr_crit_clusters=None,
-    satmerge_logvr_k=None,
+    satmerg_logvr_k=None,
 ):
     """Disruption probability of satellite (sub)halos as a function of halo properties.
 
@@ -136,7 +136,7 @@ def satellite_disruption_probability(
         Disruption cutoff in log10(Vmax/Vmpeak) in dwarf-mass host halos
     satmerg_logvr_crit_clusters : float, optional
         Disruption cutoff in log10(Vmax/Vmpeak) in cluster-mass host halos
-    satmerge_logvr_k : float, optional
+    satmerg_logvr_k : float, optional
         Steepness of the sigmoid in log10(Vmax/Vmpeak)
 
     Returns
@@ -167,10 +167,10 @@ def satellite_disruption_probability(
         if satmerg_logvr_crit_clusters is None
         else satmerg_logvr_crit_clusters
     )
-    satmerge_logvr_k = (
-        DEFAULT_PARAM_VALUES["satmerge_logvr_k"]
-        if satmerge_logvr_k is None
-        else satmerge_logvr_k
+    satmerg_logvr_k = (
+        DEFAULT_PARAM_VALUES["satmerg_logvr_k"]
+        if satmerg_logvr_k is None
+        else satmerg_logvr_k
     )
 
     params = np.array(
@@ -179,7 +179,7 @@ def satellite_disruption_probability(
             satmerg_logmhost_k,
             satmerg_logvr_crit_dwarfs,
             satmerg_logvr_crit_clusters,
-            satmerge_logvr_k,
+            satmerg_logvr_k,
         ]
     )
 
@@ -207,7 +207,7 @@ def _disruption_probability_jax_kern(upid, log_vmax_by_vmpeak, logmhost, params)
             satmerg_logmhost_k
             satmerg_logvr_crit_dwarfs
             satmerg_logvr_crit_clusters
-            satmerge_logvr_k
+            satmerg_logvr_k
 
         See the documentation of the function `disruption_probability` for
         their definitions.
@@ -251,7 +251,7 @@ def _satellite_disruption_probability_jax_kern(log_vmax_by_vmpeak, logmhost, par
             satmerg_logmhost_k
             satmerg_logvr_crit_dwarfs
             satmerg_logvr_crit_clusters
-            satmerge_logvr_k
+            satmerg_logvr_k
 
         See the documentation of the function `satellite_disruption_probability` for
         their definitions.
