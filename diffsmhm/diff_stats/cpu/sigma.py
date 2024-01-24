@@ -207,31 +207,40 @@ def sigma_mpi_kernel_cpu(
     return sigma_exp, sigma_grad_1st
 
 
-def delta_sigma_from_sigma(rpbins, sigma):
+def delta_sigma_from_sigma(sigma, sigma_grad, rpbins):
     """
     delta_sigma_from_sigma(...)
         Compute delta sigma from sigma.
 
     Parameters
     ----------
+    sigma : array-like, shape(n_rpbins,)
+        The radially binned values of halo surface density.
+    sigma_grad : array_like, shape(n_params, n_rpbins)
+        The gradients of sigma.
     rpbins : array-like, shape(n_rpbins+1,)
         Array of radial bin edges in `rp`. Note that this array is one longer
         than the number of bins in the `rp` direction.
-    sigma : array-like, shape(n_rpbins,)
-        The radially binned values of halo surface density.
-
     Returns
     -------
     delta_sigma : array-like, shape(n_rpbins,)
         The radially binned excess surface mass density.
+    delta_sigma_grad : array-like, shape(n_params, n_rpbins)
+        The gradients of delta_sigma
     """
 
     n_rpbins = len(sigma)
+    n_params = sigma_grad.shape[0]
     delta_sigma = np.empty(n_rpbins, dtype=np.float64)
+    delta_sigma_grad = np.empty((n_params, n_rpbins), dtype=np.float64)
 
     for i in range(n_rpbins):
-        # TODO: add cylinder length to normalization? (currently is a circle)
-        interior_sigma = np.sum(sigma[:i])/(np.pi * np.square(rpbins[i]))
+        interior_vol = np.pi * np.square(rpbins[i])
+
+        interior_sigma = np.sum(sigma[:i]) / interior_vol
         delta_sigma[i] = interior_sigma - sigma[i]
 
-    return delta_sigma
+        interior_sigma_grad = np.sum(sigma_grad[:, :i], axis=1) / interior_vol
+        delta_sigma_grad[:, i] = interior_sigma_grad - sigma_grad[:, i]
+
+    return delta_sigma, delta_sigma_grad
