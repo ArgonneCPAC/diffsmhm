@@ -123,16 +123,24 @@ def test_sigma_serial_cpu_derivs():
 
 @pytest.mark.mpi_skip
 def test_delta_sigma_from_sigma():
-    rpbins = np.array([1, 2, 3, 4, 5], dtype=np.double)
     sigma = np.array([40, 30, 20, 10], dtype=np.double)
+    sigma_grad = np.array([[1, 3, 5, 7], [2, 4, 6, 8]], dtype=np.float64)
 
-    delta_sigma = delta_sigma_from_sigma(rpbins, sigma)
+    rpbins = np.array([1, 2, 3, 4, 5], dtype=np.double)
 
-    delta_sigma_exp = np.array([
+    dsigma, dsigma_grad = delta_sigma_from_sigma(sigma, sigma_grad, rpbins)
+
+    dsigma_exp = np.array([
                         -40,
-                        10/np.pi - 30,
+                        40/(4*np.pi) - 30,
                         70/(9*np.pi) - 20,
                         90/(16*np.pi) - 10
                       ], dtype=np.double)
 
-    assert_allclose(delta_sigma_exp, delta_sigma)
+    dsigma_grad_exp = np.array([
+            [-1, 1/(4*np.pi) - 3, 4/(9*np.pi) - 5, 9/(16*np.pi) - 7],
+            [-2, 2/(4*np.pi) - 4, 6/(9*np.pi) - 6, 12/(16*np.pi) - 8]
+    ], dtype=np.float64)
+
+    assert_allclose(dsigma_exp, dsigma)
+    assert_allclose(dsigma_grad_exp, dsigma_grad)

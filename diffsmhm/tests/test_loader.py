@@ -341,6 +341,11 @@ def test_load_and_chop_data_bolshoi_planck_mmh_known():
         assert "y" in particles.keys()
         assert "z" in particles.keys()
 
+        # check that data is actually present
+        assert len(particles["x"]) > 0
+        assert len(particles["y"]) > 0
+        assert len(particles["z"]) > 0
+
         # to try and combat file not being found when ranks aren't synced perfectly
         COMM.Barrier()
 
@@ -394,6 +399,10 @@ def test_load_and_chop_data_bolshoi_planck_mmh_unknown():
         assert "x" in particles.keys()
         assert "y" in particles.keys()
         assert "z" in particles.keys()
+
+        assert len(particles["x"]) > 0
+        assert len(particles["y"]) > 0
+        assert len(particles["z"]) > 0
 
         # to try and combat file not being found when ranks aren't synced perfectly
         COMM.Barrier()
