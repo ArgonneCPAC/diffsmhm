@@ -1,7 +1,7 @@
 import numpy as np
 from numba import cuda
 
-import cmath
+import math
 
 
 def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
@@ -234,7 +234,7 @@ def _count_particles(
                 continue
 
             # calculate XY distance
-            pdist = cmath.sqrt((xh[i]-xp[j])*(xh[i]-xp[j]) +
+            pdist = math.sqrt((xh[i]-xp[j])*(xh[i]-xp[j]) +
                                (yh[i]-yp[j])*(yh[i]-yp[j]))
 
             for r in range(n_bins):
