@@ -235,7 +235,7 @@ def _count_particles(
 
             # calculate XY distance
             pdist = math.sqrt((xh[i]-xp[j])*(xh[i]-xp[j]) +
-                               (yh[i]-yp[j])*(yh[i]-yp[j]))
+                              (yh[i]-yp[j])*(yh[i]-yp[j]))
 
             for r in range(n_bins):
                 if pdist >= rpbins[r] and pdist < rpbins[r+1]:
