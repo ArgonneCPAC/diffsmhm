@@ -311,7 +311,8 @@ def load_and_chop_data_bolshoi_planck(
         "mpeak", "host_mpeak",
         "vmax_frac",
         "host_x", "host_y", "host_z", "host_dist",
-        "mmhid", "mmh_x", "mmh_y", "mmh_z"
+        "mmhid", "mmh_x", "mmh_y", "mmh_z",
+        "time_since_first_infall", "time_since_infall"
     ]
 
     # load in the halo file and make optional host mpeak cut
