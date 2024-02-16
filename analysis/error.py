@@ -1,3 +1,5 @@
+import numpy as np
+
 try:
     from mpi4py import MPI
 
@@ -6,15 +8,13 @@ try:
 except ImportError:
     RANK = -1
 
-import numpy as np
-
 from diff_sm import compute_weight_and_jac, compute_weight_and_jac_quench
 
 from smf import smf_mpi_comp_and_reduce
 from rpwp import compute_rpwp
 from delta_sigma import compute_delta_sigma 
 
-def mse_smhm(
+def mse_smhm_no_quench(
     smf_goal,
     rpwp_goal,
     delta_sigma_goal,
@@ -106,7 +106,7 @@ def mse_smhm(
 
 
 # wrapper for the above
-def mse_smhm_adam_wrapper(static_params, opt_params):
+def mse_smhm_no_quench_adam_wrapper(static_params, opt_params):
     """Wrapper of mse_smhm for adam.
 
     Parameters
