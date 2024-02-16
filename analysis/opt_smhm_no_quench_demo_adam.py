@@ -33,7 +33,7 @@ from rpwp import compute_rpwp
 from delta_sigma import compute_delta_sigma
 
 from adam import adam
-from error import mse_smhm_adam_wrapper
+from error import mse_smhm_no_quench_adam_wrapper
 
 # data files and params 
 halo_file="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
@@ -167,7 +167,7 @@ theta, error_history = adam(
                         theta,
                         maxiter=5,
                         minerr=4.0,
-                        err_func=mse_smhm_adam_wrapper
+                        err_func=mse_smhm_no_quench_adam_wrapper
 )
 
 # 4) make figures

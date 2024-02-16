@@ -107,7 +107,7 @@ def mse_smhm_no_quench(
 
 # wrapper for the above
 def mse_smhm_no_quench_adam_wrapper(static_params, opt_params):
-    """Wrapper of mse_smhm for adam.
+    """Wrapper of mse_smhm_no_quench for adam.
 
     Parameters
     ---------
@@ -132,7 +132,7 @@ def mse_smhm_no_quench_adam_wrapper(static_params, opt_params):
 
     """
 
-    error, error_jac = mse_smhm(
+    error, error_jac = mse_smhm_no_quench(
             static_params[0], static_params[1], static_params[2],
             static_params[3], static_params[4], static_params[5],
             static_params[6], static_params[7], static_params[8],
