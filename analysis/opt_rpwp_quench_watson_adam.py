@@ -9,7 +9,7 @@ try:
     N_RANKS = COMM.Get_size()
 except ImportError:
     COMM = None
-    RANk = 0
+    RANK = 0
     N_RANKS = 1
 
 from diffsmhm.galhalo_models.sigmoid_smhm import (
@@ -54,12 +54,12 @@ watson_unquench = read_watson_wp(unquenchfile, h=1.0)
 halo_file="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"                                          
 particle_file="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"    
 box_length = 250.0 # Mpc                                                        
-buff_wprp = 25.0 # Mpc  
+buff_wprp = 21.0 # Mpc  
 zmax = 20.0 # Mpc
 
 mass_bin_edges = np.array([10.6, 100.0], dtype=np.float64)
 
-# TODO: this is probably not right
+# TODO: this is possibly not right
 rpbins = np.append(watson_quench["r"], 20.0)
 if RANK == 0: print(rpbins, flush=True)
 
@@ -108,7 +108,7 @@ idx_to_deposit = _calculate_indx_to_deposit(halos["upid"], halos["halo_id"])
 static_params = [
                     watson_quench["wp"]*watson_quench["r"],
                     watson_unquench["wp"]*watson_quench["r"],
-                    halos["logmpeak"], halos["loghost_mpeak"], halos["vmax_frac"],
+                    halos["logmpeak"], halos["loghost_mpeak"], halos["logvmax_frac"],
                     halos["halo_x"], halos["halo_y"], halos["halo_z"],
                     halos["upid"], halos["_inside_subvol"], halos["time_since_infall"],
                     idx_to_deposit,
@@ -122,7 +122,7 @@ static_params = [
 theta, error_history = adam(
                         static_params, 
                         theta,
-                        maxiter=999999,
+                        maxiter=9999999,
                         minerr=1.0,
                         tmax=60*100,
                         err_func=mse_rpwp_quench_adam_wrapper
@@ -137,7 +137,7 @@ theta, error_history = adam(
 w_q, dw_q, w_nq, dw_nq = compute_weight_and_jac_quench(
                             halos["logmpeak"],
                             halos["loghost_mpeak"],
-                            halos["vmax_frac"],
+                            halos["logvmax_frac"],
                             halos["upid"],
                             halos["time_since_infall"],
                             idx_to_deposit,
@@ -176,7 +176,7 @@ rpwp_nq_init, _ = compute_rpwp(
 w_q, dw_q, w_nq, dw_nq = compute_weight_and_jac_quench(
                             halos["logmpeak"],
                             halos["loghost_mpeak"],
-                            halos["vmax_frac"],
+                            halos["logvmax_frac"],
                             halos["upid"],
                             halos["time_since_infall"],
                             idx_to_deposit,
@@ -212,19 +212,19 @@ rpwp_nq_final, _ = compute_rpwp(
 )
 
 if RANK == 0:
-    print(error_history[0], error_history[-1])
+    print(len(error_history), error_history[0], error_history[-1])
     print(theta)
 
     fig, axs = plt.subplots(1,2, figsize=(16,8), facecolor="w")
 
     # quenched
     axs[0].plot(rpbins[:-1], rpwp_q_init, linewidth=4)
-    axs[0].plot(rpbins[:-1], rpwp_q_final, linewidth=2)
-    axs[0].plot(rpbins[:-1], watson_quench["wp"]*watson_quench["r"], linewidth=4)
+    axs[0].plot(rpbins[:-1], rpwp_q_final, linewidth=4)
+    axs[0].plot(rpbins[:-1], watson_quench["wp"]*watson_quench["r"], linewidth=2, c="k")
 
     axs[0].set_xscale("log")
 
-    axs[0].legend(["Default Params", "Optimized Params", "Goal"])
+    axs[0].legend(["Default Params", "Optimized Params", "Data"])
 
     axs[0].set_xlabel("rp", fontsize=16)
     axs[0].set_ylabel("rp wp(rp)", fontsize=16)
@@ -232,8 +232,8 @@ if RANK == 0:
 
     # un quenched
     axs[1].plot(rpbins[:-1], rpwp_nq_init, linewidth=4)
-    axs[1].plot(rpbins[:-1], rpwp_nq_final, linewidth=2)
-    axs[1].plot(rpbins[:-1], watson_unquench["wp"]*watson_unquench["r"], linewidth=4)
+    axs[1].plot(rpbins[:-1], rpwp_nq_final, linewidth=4)
+    axs[1].plot(rpbins[:-1], watson_unquench["wp"]*watson_unquench["r"], linewidth=2, c="k")
 
     axs[1].set_xscale("log")
 
