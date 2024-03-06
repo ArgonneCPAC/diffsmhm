@@ -5,8 +5,11 @@ try:
 
     COMM = MPI.COMM_WORLD
     RANK = COMM.Get_rank()
+    N_RANKS = COMM.Get_size()
 except ImportError:
-    RANK = -1
+    COMM = None
+    RANK = 0
+    N_RANKS = 1
 
 from diff_sm import compute_weight_and_jac, compute_weight_and_jac_quench
 
@@ -46,7 +49,7 @@ def mse_smhm_no_quench(
                         theta
     )
 
-    wgt_mask = w > 0
+    #wgt_mask = w > 0
 
     # do measurements
     smf, smf_jac = smf_mpi_comp_and_reduce(
@@ -61,27 +64,27 @@ def mse_smhm_no_quench(
     )
 
     rpwp, rpwp_jac = compute_rpwp(
-                        x1=halo_x[wgt_mask],
-                        y1=halo_y[wgt_mask],
-                        z1=halo_z[wgt_mask],
-                        w1=w[wgt_mask],
-                        w1_jac=dw[:, wgt_mask],
-                        inside_subvol=inside_subvol[wgt_mask],
+                        x1=halo_x,#[wgt_mask],
+                        y1=halo_y,#[wgt_mask],
+                        z1=halo_z,#[wgt_mask],
+                        w1=w,#[wgt_mask],
+                        w1_jac=dw,#[:, wgt_mask],
+                        inside_subvol=inside_subvol,#[wgt_mask],
                         rpbins=rpbins,
                         zmax=zmax,
                         boxsize=boxsize
     )
 
     delta_sigma, delta_sigma_jac = compute_delta_sigma(
-                        xh=halo_x[wgt_mask],
-                        yh=halo_y[wgt_mask],
-                        zh=halo_z[wgt_mask],
-                        wh=w[wgt_mask],
-                        wh_jac=dw[:, wgt_mask],
+                        xh=halo_x,#[wgt_mask],
+                        yh=halo_y,#[wgt_mask],
+                        zh=halo_z,#[wgt_mask],
+                        wh=w,#[wgt_mask],
+                        wh_jac=dw,#[:, wgt_mask],
                         xp=part_x,
                         yp=part_y,
                         zp=part_z,
-                        inside_subvol=inside_subvol[wgt_mask],
+                        inside_subvol=inside_subvol,#[wgt_mask],
                         rpbins=rpbins,
                         zmax=zmax,
                         boxsize=boxsize
@@ -182,29 +185,29 @@ def mse_rpwp_quench(
                                 theta
     )
 
-    wgt_mask_quench = w_q > 0
-    wgt_mask_no_quench = w_nq > 0
+    #wgt_mask_quench = w_q > 0
+    #wgt_mask_no_quench = w_nq > 0
 
     # do measurement
     rpwp_q, rpwp_q_jac = compute_rpwp(
-                            x1=halo_x[wgt_mask_quench],
-                            y1=halo_y[wgt_mask_quench],
-                            z1=halo_z[wgt_mask_quench],
-                            w1=w_q[wgt_mask_quench],
-                            w1_jac=dw_q[:, wgt_mask_quench],
-                            inside_subvol=inside_subvol[wgt_mask_quench],
+                            x1=halo_x,#[wgt_mask_quench],
+                            y1=halo_y,#[wgt_mask_quench],
+                            z1=halo_z,#[wgt_mask_quench],
+                            w1=w_q,#[wgt_mask_quench],
+                            w1_jac=dw_q,#[:, wgt_mask_quench],
+                            inside_subvol=inside_subvol,#[wgt_mask_quench],
                             rpbins=rpbins,
                             zmax=zmax,
                             boxsize=boxsize
     )
                         
     rpwp_nq, rpwp_nq_jac = compute_rpwp(
-                            x1=halo_x[wgt_mask_no_quench],
-                            y1=halo_y[wgt_mask_no_quench],
-                            z1=halo_z[wgt_mask_no_quench],
-                            w1=w_q[wgt_mask_no_quench],
-                            w1_jac=dw_q[:, wgt_mask_no_quench],
-                            inside_subvol=inside_subvol[wgt_mask_no_quench],
+                            x1=halo_x,#[wgt_mask_no_quench],
+                            y1=halo_y,#[wgt_mask_no_quench],
+                            z1=halo_z,#[wgt_mask_no_quench],
+                            w1=w_q,#[wgt_mask_no_quench],
+                            w1_jac=dw_q,#[:, wgt_mask_no_quench],
+                            inside_subvol=inside_subvol,#[wgt_mask_no_quench],
                             rpbins=rpbins,
                             zmax=zmax,
                             boxsize=boxsize
@@ -266,3 +269,70 @@ def mse_rpwp_quench_adam_wrapper(static_params, opt_params):
 
     return error, error_jac
     
+
+def mse_rpwp(
+    rpwp_goal,
+    log_halomass,
+    log_hostmass,
+    log_vmax_by_vmpeak,
+    halo_x, halo_y, halo_z,
+    upid,
+    inside_subvol,
+    idx_to_deposit,
+    rpbins,
+    mass_bin_low, mass_bin_high,
+    zmax,
+    boxsize,
+    theta
+):
+
+    w, dw = compute_weight_and_jac(
+                log_halomass, log_hostmass,
+                log_vmax_by_vmpeak,
+                upid,
+                idx_to_deposit,
+                mass_bin_low, mass_bin_high,
+                theta
+    )
+
+    # mask out galaxies with weight zero
+    #wgt_mask = w > 0.0
+
+    # do measurement
+    rpwp, rpwp_jac = compute_rpwp(
+                        x1=halo_x,#[wgt_mask],
+                        y1=halo_y,#[wgt_mask],
+                        z1=halo_z,#[wgt_mask],
+                        w1=w,#[wgt_mask],
+                        w1_jac=dw,#[:, wgt_mask],
+                        inside_subvol=inside_subvol,#[wgt_mask],
+                        rpbins=rpbins,
+                        zmax=zmax,
+                        boxsize=boxsize
+    )
+
+    # error
+    err, err_jac = None, None
+    if RANK == 0:
+        err = np.sum((rpwp-rpwp_goal)*(rpwp-rpwp_goal)) / len(rpwp)
+        err_jac = np.sum(2 * rpwp_jac * (rpwp-rpwp_goal), axis=1) / len(rpwp)
+
+    return err, err_jac 
+
+
+def mse_rpwp_adam_wrapper(static_params, opt_params):
+    
+    error, error_jac = mse_rpwp(
+                        static_params[0],
+                        static_params[1], static_params[2], static_params[3],
+                        static_params[4], static_params[5], static_params[6],
+                        static_params[7], static_params[8],
+                        static_params[9],
+                        static_params[10],
+                        static_params[11], static_params[12],
+                        static_params[13],
+                        static_params[14],
+                        opt_params
+    )
+
+    return error, error_jac
