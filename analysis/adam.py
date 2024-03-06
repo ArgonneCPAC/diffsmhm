@@ -82,10 +82,15 @@ def adam(
 
         err_history.append(err)
 
-        # check loop condition        
+        # rank 0 check loop condition
+        cont = True
         if err < minerr or t > maxiter:
-            break
-        if tmax > 0 and time.time() - tstart > tmax:
+            cont=False
+        telapsed = time.time() - tstart
+        if tmax > 0 and telapsed > tmax:
+            cont=False
+        cont = COMM.bcast(cont, root=0)
+        if not cont:
             break
 
         # update params
