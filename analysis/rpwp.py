@@ -12,6 +12,8 @@ except ImportError:
     RANK = 0
     N_RANKS = 1
 
+import numpy as np
+
 # method for rpwp given weights
 def compute_rpwp(
     *,
@@ -27,6 +29,8 @@ def compute_rpwp(
 
     """
 
+    print(RANK, "dw:", np.sum(w1_jac, axis=1), flush=True)
+
     # calcualte wp(rp)
     wp, wp_grad = wprp_mpi_comp_and_reduce(
                                 x1=x1, y1=y1, z1=z1,
@@ -38,6 +42,9 @@ def compute_rpwp(
                                 boxsize=boxsize,
                                 kernel_func=wprp_mpi_kernel_cuda
     )
+
+    if RANK == 0:
+        print(RANK, "gwp:", np.sum(wp_grad, axis=1), flush=True)
 
     # compute rp wp(rp)
     # TODO: is this rp mult okay or do we want average radius?
