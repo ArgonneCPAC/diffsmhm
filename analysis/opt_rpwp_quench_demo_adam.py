@@ -42,9 +42,9 @@ particle_file="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
 box_length = 250.0 # Mpc
 buff_wprp = 20.0 # Mpc
 
-mass_bin_edges = np.array([10.6, 10.7], dtype=np.float64)
+mass_bin_edges = np.array([10.6, 11.2], dtype=np.float64)
 
-rpbins = np.logspace(-1, 1.5, 13, dtype=np.float64)
+rpbins = np.logspace(-1, 1.2, 13, dtype=np.float64)
 zmax = 20.0 # Mpc
 
 theta = np.array(list(smhm_params.values()) +
@@ -61,14 +61,15 @@ halos, _ = load_and_chop_data_bolshoi_planck(
                     halo_file,
                     box_length,
                     buff_wprp,
-                    host_mpeak_cut=14.7)
+                    host_mpeak_cut=0.0)
 
 idx_to_deposit = _calculate_indx_to_deposit(halos["upid"], halos["halo_id"])
 
 print(RANK, len(halos["halo_id"]), flush=True)
 
 # 2) obtain "goal" measurement
-parameter_perturbations = np.random.uniform(low=0.95, high=1.05, size=n_params)
+np.random.seed(999)
+parameter_perturbations = np.random.uniform(low=0.995, high=1.005, size=n_params)
 
 theta_goal = theta * parameter_perturbations
 
@@ -76,40 +77,42 @@ theta_goal = theta * parameter_perturbations
 w_q, dw_q, w_nq, dw_nq = compute_weight_and_jac_quench(
                         halos["logmpeak"],
                         halos["loghost_mpeak"],
-                        halos["vmax_frac"],
+                        halos["logvmax_frac"],
                         halos["upid"],
                         halos["time_since_infall"],
                         idx_to_deposit,
                         mass_bin_edges[0], mass_bin_edges[1],
-                        theta
+                        theta_goal
 )
 
-wgt_mask_quench = w_q > 0
-wgt_mask_no_quench = w_nq > 0
+#wgt_mask_quench = w_q > 0
+#wgt_mask_no_quench = w_nq > 0
 
 if RANK == 0:
     print("goal weights done", flush=True)
+print(RANK, "opt dw_q: ", np.sum(dw_q, axis=1), flush=True)
+print(RANK, "opt dw_nq:", np.sum(dw_nq, axis=1), flush=True)
 
 # goal rpwp computation
-rpwp_q_goal, gq = compute_rpwp(
-                        x1=halos["halo_x"][wgt_mask_quench],
-                        y1=halos["halo_y"][wgt_mask_quench],
-                        z1=halos["halo_z"][wgt_mask_quench],
-                        w1=w_q[wgt_mask_quench],
-                        w1_jac=dw_q[:, wgt_mask_quench],
-                        inside_subvol=halos["_inside_subvol"][wgt_mask_quench],
+rpwp_q_goal, _ = compute_rpwp(
+                        x1=halos["halo_x"],#[wgt_mask_quench],
+                        y1=halos["halo_y"],#[wgt_mask_quench],
+                        z1=halos["halo_z"],#[wgt_mask_quench],
+                        w1=w_q,#[wgt_mask_quench],
+                        w1_jac=dw_q,#[:, wgt_mask_quench],
+                        inside_subvol=halos["_inside_subvol"],#[wgt_mask_quench],
                         rpbins=rpbins,
                         zmax=zmax,
                         boxsize=box_length
 )
 
-rpwp_nq_goal, gnq = compute_rpwp(
-                        x1=halos["halo_x"][wgt_mask_no_quench],
-                        y1=halos["halo_y"][wgt_mask_no_quench],
-                        z1=halos["halo_z"][wgt_mask_no_quench],
-                        w1=w_nq[wgt_mask_no_quench],
-                        w1_jac=dw_nq[:, wgt_mask_no_quench],
-                        inside_subvol=halos["_inside_subvol"][wgt_mask_no_quench],
+rpwp_nq_goal, _ = compute_rpwp(
+                        x1=halos["halo_x"],#[wgt_mask_no_quench],
+                        y1=halos["halo_y"],#[wgt_mask_no_quench],
+                        z1=halos["halo_z"],#[wgt_mask_no_quench],
+                        w1=w_nq,#[wgt_mask_no_quench],
+                        w1_jac=dw_nq,#[:, wgt_mask_no_quench],
+                        inside_subvol=halos["_inside_subvol"],#[wgt_mask_no_quench],
                         rpbins=rpbins,
                         zmax=zmax,
                         boxsize=box_length
@@ -117,7 +120,6 @@ rpwp_nq_goal, gnq = compute_rpwp(
 
 if RANK == 0:
     print("goal wprp done", flush=True)
-    print(gq.shape, gnq.shape)
 
 # 3) do optimization
 theta_init = np.copy(theta)
@@ -125,7 +127,7 @@ theta_init = np.copy(theta)
 # copy necessary params into static_params arrray
 static_params = [
                  rpwp_q_goal, rpwp_nq_goal,
-                 halos["logmpeak"], halos["loghost_mpeak"], halos["vmax_frac"],
+                 halos["logmpeak"], halos["loghost_mpeak"], halos["logvmax_frac"],
                  halos["halo_x"], halos["halo_y"], halos["halo_z"],
                  halos["upid"], halos["_inside_subvol"], halos["time_since_infall"],
                  idx_to_deposit,
@@ -139,8 +141,9 @@ static_params = [
 theta, error_history = adam(
                         static_params,
                         theta,
-                        maxiter=5,
-                        minerr=4.0,
+                        maxiter=999999,
+                        minerr=0.0,
+                        tmax=110*60,
                         err_func=mse_rpwp_quench_adam_wrapper
 )
 
@@ -158,28 +161,28 @@ w_q, dw_q, w_nq, dw_nq = compute_weight_and_jac_quench(
                     theta_init
 )
 
-wgt_mask_quench = w_q > 0
-wgt_mask_no_quench = w_nq > 0
+#wgt_mask_quench = w_q > 0
+#wgt_mask_no_quench = w_nq > 0
 
 rpwp_q_init, _ = compute_rpwp(
-                    x1=halos["halo_x"][wgt_mask_quench],
-                    y1=halos["halo_y"][wgt_mask_quench],
-                    z1=halos["halo_z"][wgt_mask_quench],
-                    w1=w_q[wgt_mask_quench],
-                    w1_jac=dw_q[:, wgt_mask_quench],
-                    inside_subvol=halos["_inside_subvol"][wgt_mask_quench],
+                    x1=halos["halo_x"],#[wgt_mask_quench],
+                    y1=halos["halo_y"],#[wgt_mask_quench],
+                    z1=halos["halo_z"],#[wgt_mask_quench],
+                    w1=w_q,#[wgt_mask_quench],
+                    w1_jac=dw_q,#[:, wgt_mask_quench],
+                    inside_subvol=halos["_inside_subvol"],#[wgt_mask_quench],
                     rpbins=rpbins,
                     zmax=zmax,
                     boxsize=box_length
 )
 
 rpwp_nq_init, _ = compute_rpwp(
-                    x1=halos["halo_x"][wgt_mask_no_quench],
-                    y1=halos["halo_y"][wgt_mask_no_quench],
-                    z1=halos["halo_z"][wgt_mask_no_quench],
-                    w1=w_nq[wgt_mask_no_quench],
-                    w1_jac=dw_nq[:, wgt_mask_no_quench],
-                    inside_subvol=halos["_inside_subvol"][wgt_mask_no_quench],
+                    x1=halos["halo_x"],#[wgt_mask_no_quench],
+                    y1=halos["halo_y"],#[wgt_mask_no_quench],
+                    z1=halos["halo_z"],#[wgt_mask_no_quench],
+                    w1=w_nq,#[wgt_mask_no_quench],
+                    w1_jac=dw_nq,#[:, wgt_mask_no_quench],
+                    inside_subvol=halos["_inside_subvol"],#[wgt_mask_no_quench],
                     rpbins=rpbins,
                     zmax=zmax,
                     boxsize=box_length
@@ -197,32 +200,35 @@ w_q, dw_q, w_nq, dw_nq = compute_weight_and_jac_quench(
                     theta
 )
 
-wgt_mask_quench = w_q > 0
-wgt_mask_no_quench = w_nq > 0
+#wgt_mask_quench = w_q > 0
+#wgt_mask_no_quench = w_nq > 0
 
 rpwp_q, _ = compute_rpwp(
-                    x1=halos["halo_x"][wgt_mask_quench],
-                    y1=halos["halo_y"][wgt_mask_quench],
-                    z1=halos["halo_z"][wgt_mask_quench],
-                    w1=w_q[wgt_mask_quench],
-                    w1_jac=dw_q[:, wgt_mask_quench],
-                    inside_subvol=halos["_inside_subvol"][wgt_mask_quench],
+                    x1=halos["halo_x"],#[wgt_mask_quench],
+                    y1=halos["halo_y"],#[wgt_mask_quench],
+                    z1=halos["halo_z"],#[wgt_mask_quench],
+                    w1=w_q,#[wgt_mask_quench],
+                    w1_jac=dw_q,#[:, wgt_mask_quench],
+                    inside_subvol=halos["_inside_subvol"],#[wgt_mask_quench],
                     rpbins=rpbins,
                     zmax=zmax,
                     boxsize=box_length
 )
 
 rpwp_nq, _ = compute_rpwp(
-                    x1=halos["halo_x"][wgt_mask_no_quench],
-                    y1=halos["halo_y"][wgt_mask_no_quench],
-                    z1=halos["halo_z"][wgt_mask_no_quench],
-                    w1=w_nq[wgt_mask_no_quench],
-                    w1_jac=dw_nq[:, wgt_mask_no_quench],
-                    inside_subvol=halos["_inside_subvol"][wgt_mask_no_quench],
+                    x1=halos["halo_x"],#[wgt_mask_no_quench],
+                    y1=halos["halo_y"],#[wgt_mask_no_quench],
+                    z1=halos["halo_z"],#[wgt_mask_no_quench],
+                    w1=w_nq,#[wgt_mask_no_quench],
+                    w1_jac=dw_nq,#[:, wgt_mask_no_quench],
+                    inside_subvol=halos["_inside_subvol"],#[wgt_mask_no_quench],
                     rpbins=rpbins,
                     zmax=zmax,
                     boxsize=box_length
 )
+
+if RANK == 0:
+    print("eh:", len(error_history), error_history[0], error_history[-1])
 
 # error history figure
 if RANK == 0:
@@ -234,6 +240,8 @@ if RANK == 0:
     plt.ylabel("Mean Squared Error", fontsize=16)
     plt.title("Error per Iteration", fontsize=20)
 
+    plt.yscale("log")
+
     plt.tight_layout()
     plt.savefig("wprp_error_history.png")
 
@@ -244,22 +252,26 @@ if RANK == 0:
     # quenched
     axs[0].plot(rpbins[:-1], rpwp_q_init, linewidth=4)
     axs[0].plot(rpbins[:-1], rpwp_q, linewidth=4)
-    axs[0].plot(rpbins[:-1], rpwp_q_goal, linewidth=4)
+    axs[0].plot(rpbins[:-1], rpwp_q_goal, linewidth=2, c="k")
 
     axs[0].legend(["Initial Guess", "Final Guess", "Goal"])
 
     axs[0].set_xlabel("rp", fontsize=16)
     axs[0].set_ylabel("rp wp(rp)", fontsize=16)
-    axs[0].set_title("Quenched Correlation Function", fontsize=20)
+    axs[0].set_title("Quenched Correlation Function; 10.6->11.2", fontsize=20)
+
+    axs[0].set_xscale("log")
 
     # un quenched
     axs[1].plot(rpbins[:-1], rpwp_nq_init, linewidth=4)
     axs[1].plot(rpbins[:-1], rpwp_nq, linewidth=4)
-    axs[1].plot(rpbins[:-1], rpwp_nq_goal, linewidth=4)
+    axs[1].plot(rpbins[:-1], rpwp_nq_goal, linewidth=2, c="k")
 
     axs[1].set_xlabel("rp", fontsize=16)
     axs[1].set_ylabel("rp wp(rp)", fontsize=16)
     axs[1].set_title("Unquenched Correlation Function", fontsize=20)
 
-    plt.savefig("rpwp_quench_opt.png")
+    axs[1].set_xscale("log")
+
+    plt.savefig("rpwp_quench_demo_adam.png")
 
