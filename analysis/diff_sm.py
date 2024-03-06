@@ -22,6 +22,11 @@ from diffsmhm.diff_stats.cuda.tw_kernels import (
     tw_kern_mstar_bin_weights_and_derivs_cuda
 )
 
+# for debugging
+from mpi4py import MPI
+COMM = MPI.COMM_WORLD
+RANK = COMM.Get_rank()
+
 
 # functions for differentiable stellar mass and scatter
 
@@ -48,7 +53,7 @@ def _net_stellar_mass(
     # munge params into arrays
     smhm_params, _, disruption_params, _ = _munge_theta(theta)        
 
-    # stellar mass and scatter
+    # stellar mass
     stellar_mass = logsm_from_logmhalo_jax(hm, smhm_params)
 
     # merging probability
@@ -62,6 +67,8 @@ def _net_stellar_mass(
     # add/subtract merged mass
     net_stellar_mass = deposit_stellar_mass(stellar_mass, idx_to_deposit, merging_prob)
     
+    #print("diff:", max(jnp.log10(net_stellar_mass)-stellar_mass), flush=True)
+
     return jnp.log10(net_stellar_mass)
 
 
@@ -110,6 +117,8 @@ def compute_sm_and_jac(
         idx_to_deposit,
         theta
     )
+
+    print("sm:", np.sum(sm_jac, axis=0), flush=True)
 
     sm = np.array(sm, dtype=np.float64)
     sm_jac = np.array(sm_jac, dtype=np.float64).T
@@ -261,14 +270,20 @@ def compute_weight_and_jac_quench(
                         theta
     )
 
+    #print("dq:", np.sum(dq, axis=1), flush=False)
+
     # multiply weights by quenched probability
     w_quench = w * q
 
     dw_quench = (w * dq) + (dw * q)
+
+    print(RANK, "dwq: ", np.sum(dw_quench, axis=1), flush=True)
 
     # multiply weights by not-quenched probabilty
     w_no_quench = w * (1-q)
 
     dw_no_quench = (w * -1 * dq) + (dw * (1-q))
 
-    return w, dw, w_no_quench, dw_no_quench
+    print(RANK, "dwnq:", np.sum(dw_no_quench, axis=1), flush=True)
+
+    return w_quench, dw_quench, w_no_quench, dw_no_quench
