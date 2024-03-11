@@ -52,9 +52,12 @@ def _net_stellar_mass(
 
     # munge params into arrays
     smhm_params, _, disruption_params, _ = _munge_theta(theta)        
+    #smhm_params = jnp.array([11.35, -1.65, 1.58489319, 2.5, 0.5])
 
     # stellar mass
     stellar_mass = logsm_from_logmhalo_jax(hm, smhm_params)
+
+    #print("sm:", jnp.max(stellar_mass))
 
     # merging probability
     merging_prob = disruption_probability_jax(
@@ -64,12 +67,17 @@ def _net_stellar_mass(
                         disruption_params
     )
 
+    #print("mp:", jnp.max(merging_prob))
+
     # add/subtract merged mass
     net_stellar_mass = deposit_stellar_mass(stellar_mass, idx_to_deposit, merging_prob)
+    log_net_stellar_mass = jnp.log10(net_stellar_mass)
     
+    #print("nsm:", jnp.max(net_stellar_mass))
+
     #print("diff:", max(jnp.log10(net_stellar_mass)-stellar_mass), flush=True)
 
-    return jnp.log10(net_stellar_mass)
+    return log_net_stellar_mass
 
 
 # wrapper function for smhm scatter, makes jacobian easier bc we input full theta
@@ -117,8 +125,6 @@ def compute_sm_and_jac(
         idx_to_deposit,
         theta
     )
-
-    print("sm:", np.sum(sm_jac, axis=0), flush=True)
 
     sm = np.array(sm, dtype=np.float64)
     sm_jac = np.array(sm_jac, dtype=np.float64).T
@@ -226,6 +232,8 @@ def compute_weight_and_jac(
                                         w,
                                         dw
     )
+
+    #print(RANK, "dw: ", np.sum(dw, axis=1), flush=True)
 
     return w, dw
 
