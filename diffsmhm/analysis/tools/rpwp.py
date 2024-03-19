@@ -14,6 +14,7 @@ except ImportError:
 
 import numpy as np
 
+
 # method for rpwp given weights
 def compute_rpwp(
     *,
@@ -24,12 +25,34 @@ def compute_rpwp(
     zmax,
     boxsize
 ):
-
     """
+    Compute rp wp(rp).
 
+    Parameters
+    ----------
+    x1, y1, z1, w1 : array_like, shape (n_gals,)
+        The arrays of positions and weights for the halos.
+    w1_jac : array_like, shape (n_params, n_gals)
+        The weight gradients for the halos.
+    inside_subvol : array_like, shape (n_gals,)
+        A boolean array with `True` when the point is inside the subvolume
+        and `False` otherwise.
+    rpbins : array_like, shape (n_rpbins+1,)
+        Array of the bin edges in the `rp` direction. Note that this array is one
+        longer than the number of bins in the `rp` direction.
+    zmax : float
+        The maximum separation in the `pi` (or typically `z`) direction. Output
+        bins in the `z` direction are unit width, so make sure this is a whole number.
+    boxsize : float
+        The size of the total periodic volume of the simulation.
+
+    Returns
+    -------
+    rpwp : array_like, shape (n_rpbins,)
+        The rp wp(rp) computation.
+    rpwp_grad : array_like, shape (n_params, n_rpbins)
+        The gradients of rp wp(rp).
     """
-
-    print(RANK, "dw:", np.sum(w1_jac, axis=1), flush=True)
 
     # calcualte wp(rp)
     wp, wp_grad = wprp_mpi_comp_and_reduce(
@@ -43,9 +66,6 @@ def compute_rpwp(
                                 kernel_func=wprp_mpi_kernel_cuda
     )
 
-    if RANK == 0:
-        print(RANK, "gwp:", np.sum(wp_grad, axis=1), flush=True)
-
     # compute rp wp(rp)
     # TODO: is this rp mult okay or do we want average radius?
     rpwp, rpwp_grad = None, None
@@ -54,5 +74,3 @@ def compute_rpwp(
         rpwp_grad = wp_grad * rpbins[:-1]
 
     return rpwp, rpwp_grad
-                                
-

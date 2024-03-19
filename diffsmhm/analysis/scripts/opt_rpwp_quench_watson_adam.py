@@ -110,7 +110,8 @@ static_params = [
                     watson_unquench["wp"]*watson_quench["r"],
                     halos["logmpeak"], halos["loghost_mpeak"], halos["logvmax_frac"],
                     halos["halo_x"], halos["halo_y"], halos["halo_z"],
-                    halos["upid"], halos["_inside_subvol"], halos["time_since_infall"],
+                    halos["time_since_infall"],
+                    halos["upid"], halos["_inside_subvol"],
                     idx_to_deposit,
                     rpbins,
                     mass_bin_edges[0],
@@ -130,7 +131,6 @@ theta, error_history = adam(
 
 
 # 4) export data for ploting
-# TODO: do something actually nice for this
 
 # given original and new theta, let's plot the change of rpwp
 # first, we get initial guess rpwp
@@ -241,4 +241,17 @@ if RANK == 0:
     axs[1].set_ylabel("rp wp(rp)", fontsize=16)
     axs[1].set_title("Unquenched Correlation Function", fontsize=20)
 
-    plt.savefig("rpwp_watson.png")
+    plt.savefig("figures/rpwp_watson.png")
+
+# error difference at each iteration
+if RANK == 0:
+    err_diff = error_history[:-1] - error_history[1:]
+
+    fig = plt.figure(figsize=(10,8), facecolor="w")
+
+    plt.plot(error_diff)
+
+    plt.yscale("log")
+
+    plt.savefig("figures/rpwp_watson_edpi.png")
+

@@ -41,21 +41,14 @@ def deposit_stellar_mass(logsm, indx_to_deposit, frac_to_deposit):
 def _jax_deposit_mstar_jax(logsm, indx_to_deposit, frac_to_deposit):
     ngals = logsm.shape[0]
 
-    print("fdep", jax_np.max(jax_np.abs(frac_to_deposit)))
-    fkeep = 1 - frac_to_deposit
-    print("fkeep", jax_np.mean(jax_np.abs(fkeep)))
-
     mstar = jax_np.power(10, logsm)
     mstar_to_deposit = frac_to_deposit * mstar
-    print("mdep:", jax_np.mean(jax_np.abs(mstar_to_deposit)))
     mstar_to_keep = (1 - frac_to_deposit) * mstar
-    print("mkeep:", jax_np.mean(mstar_to_keep), flush=True)
     indx_to_keep = jax_np.arange(ngals).astype("i8")
 
     total_mstar = jax_np.zeros_like(mstar)
     total_mstar = total_mstar.at[indx_to_deposit].add(mstar_to_deposit)
     total_mstar = total_mstar.at[indx_to_keep].add(mstar_to_keep)
-    print("tms:", np.max(total_mstar), flush=True)
 
     return jax_np.absolute(total_mstar)
 

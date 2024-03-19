@@ -12,12 +12,13 @@ except ImportError:
     RANK = 0
     N_RANKS = 1
 
+
 def adam(
+    *,
     static_params,
     opt_params,
     err_func,
     maxiter,
-    minerr,
     tmax=-1,
     a=0.001,
     b1=0.9,
@@ -25,7 +26,7 @@ def adam(
     eps=10**-8
 ):
     """Adam optimizer for a given error function.
-        
+
     Parameters
     ---------
     static_params : array-like
@@ -33,12 +34,10 @@ def adam(
     opt_params : array-like, shape(n_params,)
         Parameters to optimize
     err_func : function
-        Function that takes in (static_params, opt_params) and returns 
+        Function that takes in (static_params, opt_params) and returns
         (error, error_jacobian).
     maxiter : int
         Maximum number of optimization loops to perform
-    minerr : float
-        Error target at which to stop optimization
     tmax : float, optional
         Maximum time for which to run the optimizer in seconds
     a : float, optional
@@ -84,11 +83,11 @@ def adam(
 
         # rank 0 check loop condition
         cont = True
-        if err < minerr or t > maxiter:
-            cont=False
+        if t > maxiter:
+            cont = False
         telapsed = time.time() - tstart
         if tmax > 0 and telapsed > tmax:
-            cont=False
+            cont = False
         cont = COMM.bcast(cont, root=0)
         if not cont:
             break

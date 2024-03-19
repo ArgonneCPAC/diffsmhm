@@ -34,7 +34,7 @@ def load_testing(halo_file, host_mpeak_cut=0.0):
                 dt = "f4"
             halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
 
-    #  Compute some logs once and for all
+    # compute some logs once and for all
     halos["logmpeak"] = np.log10(halos["mpeak"])
     halos["loghost_mpeak"] = np.log10(halos["host_mpeak"])
     halos["logvmax_frac"] = np.log10(halos["vmax_frac"])
@@ -43,6 +43,11 @@ def load_testing(halo_file, host_mpeak_cut=0.0):
 
 halos = load_testing(halo_file, host_mpeak_cut=14.0)
 idx_to_deposit = _calculate_indx_to_deposit(halos["upid"], halos["halo_id"])
+
+print(idx_to_deposit)
+print(halos["halo_id"])
+print(halos["upid"], flush=True)
+
 mass_bin_edges = np.array([10.0, 12.0], dtype=np.float64)
 
 theta_default = np.array([

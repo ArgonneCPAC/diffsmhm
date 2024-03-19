@@ -63,8 +63,6 @@ halos, _ = load_and_chop_data_bolshoi_planck(
 
 idx_to_deposit = _calculate_indx_to_deposit(halos["upid"], halos["halo_id"])
 
-print(RANK, len(halos["halo_id"]), flush=True)
-
 # 2) obtain "goal" measurement
 np.random.seed(999)
 parameter_perturbations = np.random.uniform(low=0.98, high=1.02, size=n_params)
@@ -121,11 +119,14 @@ theta, error_history = adam(
                         err_func=mse_rpwp_adam_wrapper,
                         maxiter=999999999,
                         minerr=0.0,
-                        tmax=105*60
+                        tmax=55*60,
+                        a=0.005
 )
 
 if RANK == 0:
-    print(len(error_history), error_history[0], error_history[-1], flush=True)
+    print(len(error_history), error_history[0], error_history[-1])
+    print("goal params:", theta_goal)
+    print("opt params:", theta)
 
 # 4) make figure
 
@@ -199,4 +200,20 @@ if RANK == 0:
 
     plt.xscale("log")
 
-    plt.savefig("rpwp_demo.png")
+    plt.savefig("figures/rpwp_demo_adam.png")
+
+# change in error per iteration
+if RANK == 0:
+    error_diff = error_history[:-1] - error_history[1:]
+
+    fig = plt.figure(figsize=(10,8), facecolor="w")
+
+    plt.plot(error_diff)
+
+    plt.yscale("log")
+
+    plt.title("Error Difference Per Iteration", fontsize=20)
+    plt.xlabel("Iteration Number", fontsize=16)
+    plt.ylabel("log Error Difference", fontsize=16)
+
+    plt.savefig("figures/rpwp_demo_adam_edpi.png")

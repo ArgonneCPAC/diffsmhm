@@ -24,8 +24,37 @@ def compute_delta_sigma(
     zmax,
     boxsize
 ):
-    """
-    
+    """Delta Sigma for a given set of halos. Essentially a wrapper for
+    diff_stats.mpi.delta_sigma.
+
+    Parameters
+    ----------
+    xh, yh, zh, wh : array-like, shape (n_halos,)
+        Halo positions and weights.
+    wh_jac : array-like, shape (n_halos,n_params)
+        Halo weight jacobian.
+    xp, yp, zp : array-like, shape (n_particles,)
+        Particle positions.
+    inside_subvol : array-like, shape (n_halos,)
+        Boolean array with `True` when the point is inside the subvolume
+        and `False` otherwise.
+    rpbins : array-like, shape (n_rpbins+1,)
+        Array of the bin edges in the `rp` direction. Note that this array is
+        one longer than the number of bins in the `rp` direction.
+    zmax : float
+        The maximum separation in the `pi` (or typically `z`) direction. Particles
+        with z distance less than zmax for a given halo are included in delta
+        sigma calculations. Note this should be a whole number due to unit binning
+        of Corrfunc.
+    boxsize : float
+        The size of the total periodic volume of the simulation.
+
+    Returns
+    -------
+    delta_sigma : array-like, shape ( n_rpbins,)
+        The 2D surface overdensity function.
+    delta_sigma_grad : array-like, shape (n_rpbins, n_params)
+        The gradients of the 2D surface overdensity function.
     """
 
     sigma, sigma_grad = sigma_mpi_comp_and_reduce(

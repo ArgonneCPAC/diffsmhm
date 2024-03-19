@@ -69,7 +69,7 @@ print(RANK, len(halos["halo_id"]), flush=True)
 
 # 2) obtain "goal" measurement
 np.random.seed(999)
-parameter_perturbations = np.random.uniform(low=0.995, high=1.005, size=n_params)
+parameter_perturbations = np.random.uniform(low=0.98, high=1.02, size=n_params)
 
 theta_goal = theta * parameter_perturbations
 
@@ -90,8 +90,6 @@ w_q, dw_q, w_nq, dw_nq = compute_weight_and_jac_quench(
 
 if RANK == 0:
     print("goal weights done", flush=True)
-print(RANK, "opt dw_q: ", np.sum(dw_q, axis=1), flush=True)
-print(RANK, "opt dw_nq:", np.sum(dw_nq, axis=1), flush=True)
 
 # goal rpwp computation
 rpwp_q_goal, _ = compute_rpwp(
@@ -129,11 +127,11 @@ static_params = [
                  rpwp_q_goal, rpwp_nq_goal,
                  halos["logmpeak"], halos["loghost_mpeak"], halos["logvmax_frac"],
                  halos["halo_x"], halos["halo_y"], halos["halo_z"],
-                 halos["upid"], halos["_inside_subvol"], halos["time_since_infall"],
+                 halos["time_since_infall"],
+                 halos["upid"], halos["_inside_subvol"],
                  idx_to_deposit,
                  rpbins,
-                 mass_bin_edges[0],
-                 mass_bin_edges[1],
+                 mass_bin_edges[0], mass_bin_edges[1],
                  zmax,
                  box_length
 ]
@@ -144,7 +142,8 @@ theta, error_history = adam(
                         maxiter=999999,
                         minerr=0.0,
                         tmax=110*60,
-                        err_func=mse_rpwp_quench_adam_wrapper
+                        err_func=mse_rpwp_quench_adam_wrapper,
+                        a=0.005
 )
 
 # 4) Make figures
@@ -229,21 +228,26 @@ rpwp_nq, _ = compute_rpwp(
 
 if RANK == 0:
     print("eh:", len(error_history), error_history[0], error_history[-1])
+    print("goal params:", theta_goal)
+    print("start params:", theta_init)
+    print("end params:", theta)
 
 # error history figure
 if RANK == 0:
+    err_diff = error_history[:-1] - error_history[1:]
+
     fig = plt.figure(figsize=(12,8), facecolor="w")
 
-    plt.plot(error_history)
+    plt.plot(err_diff)
 
     plt.xlabel("Iteration Number", fontsize=16)
-    plt.ylabel("Mean Squared Error", fontsize=16)
-    plt.title("Error per Iteration", fontsize=20)
+    plt.ylabel("Change in Error", fontsize=16)
+    plt.title("Change in Error per Iteration", fontsize=20)
 
     plt.yscale("log")
 
     plt.tight_layout()
-    plt.savefig("wprp_error_history.png")
+    plt.savefig("figures/rpwp_quench_demo_adam_edpi.png")
 
 # rpwp figure
 if RANK == 0:
@@ -273,5 +277,5 @@ if RANK == 0:
 
     axs[1].set_xscale("log")
 
-    plt.savefig("rpwp_quench_demo_adam.png")
+    plt.savefig("figures/rpwp_quench_demo_adam.png")
 
