@@ -2,7 +2,6 @@
 import numpy as np
 from collections import OrderedDict
 import jax
-from jax import numpy as jax_np
 from jax.nn import sigmoid as sigmoid
 
 

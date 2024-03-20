@@ -1,6 +1,6 @@
 import numpy as np
-from jax import numpy as jax_np
 from jax.nn import sigmoid as sigmoid
+
 
 def get_1d_arrays(*args):
     """Return a list of ndarrays of the same length.
