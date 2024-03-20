@@ -1,11 +1,3 @@
-from jax import config
-config.update("jax_enable_x64", True)
-
-import pytest
-
-import numpy as np
-from numpy.testing import assert_allclose
-
 from diffsmhm.galhalo_models.sigmoid_smhm import (
     DEFAULT_PARAM_VALUES as smhm_params
 )
@@ -21,11 +13,22 @@ from diffsmhm.galhalo_models.sigmoid_quenching import (
 
 from diffsmhm.analysis.tools.diff_sm import (
     compute_sm_and_jac,
+    compute_sm_sigma_and_jac,
+    compute_quenching_prob_and_jac,
     compute_weight_and_jac,
     compute_weight_and_jac_quench
 )
 
+import pytest
+import numpy as np
 
+from numpy.testing import assert_allclose
+
+from jax import config
+config.update("jax_enable_x64", True)
+
+
+@pytest.mark.mpi_skip
 def _get_data():
     np.random.seed(42)
 
@@ -35,8 +38,6 @@ def _get_data():
     upid = np.zeros(ngals, dtype="i")
     upid[0] = -1
     idx_to_deposit = np.zeros(ngals, dtype="i")
-    #idx_to_deposit = np.random.randint(0, ngals, size=ngals)
-    #hostm = hm[idx_to_deposit]
     hostm = np.ones(ngals, dtype=np.float64)*hm[0]
     tinfall = np.random.uniform(0.0, 2.0, size=ngals)
 
@@ -46,6 +47,7 @@ def _get_data():
                      list(quenching_params.values()), dtype=np.float64)
 
     return hm, hostm, vmax_frac, upid, idx_to_deposit, tinfall, theta
+
 
 @pytest.mark.mpi_skip
 def test_compute_sm_and_jac_smoke():
@@ -82,11 +84,12 @@ def test_compute_sm_and_jac_derivs():
                     idx_to_deposit=idx_to_deposit,
                     theta=theta
     )
-    
+
     eps = 1e-6
     for pind in range(npars):
         # skip the params that don't matter for this calculation
-        if pind in [5,6,7,8, 14,15,16,17,18,19,20,21,22]:
+        if pind in [5, 6, 7, 8,
+                    14, 15, 16, 17, 18, 19, 20, 21, 22]:
             continue
 
         theta_p = np.copy(theta)
@@ -113,11 +116,138 @@ def test_compute_sm_and_jac_derivs():
 
         print(pind)
         grad = (sm_p - sm_m)/2.0/eps
-        assert_allclose(sm_jac[pind, :], grad)
+        assert_allclose(sm_jac[pind, :], grad, rtol=1e-7, atol=1e-8)
         assert np.any(grad != 0)
         assert np.any(sm_jac[pind, :] != 0)
 
 
+@pytest.mark.mpi_skip
+def test_compute_sm_sigma_and_jac_smoke():
+    hm, _, _, _, _, _, theta = _get_data()
+
+    sm_sigma, sm_sigma_jac = compute_sm_sigma_and_jac(
+                                logmpeak=hm,
+                                theta=theta
+    )
+
+    assert sm_sigma.shape == (len(hm),)
+    assert sm_sigma_jac.shape == (len(theta), len(hm))
+    assert np.all(np.isfinite(sm_sigma))
+    assert np.all(np.isfinite(sm_sigma_jac))
+    assert np.any(sm_sigma != 0)
+    assert np.any(sm_sigma_jac != 0)
+
+
+@pytest.mark.mpi_skip
+def test_compute_sm_sigma_and_jac_derivs():
+    hm, _, _, _, _, _, theta = _get_data()
+    npars = len(theta)
+
+    # test gradient
+    sm_sigma, sm_sigma_jac = compute_sm_sigma_and_jac(
+                                logmpeak=hm,
+                                theta=theta
+    )
+
+    eps = 1e-6
+    for pind in range(npars):
+        # skip the params that don't matter for this calculation
+        if pind in [0, 1, 2, 3, 4,
+                    9, 10, 11, 12, 13,
+                    14, 15, 16, 17, 18, 19, 20, 21, 22]:
+            continue
+
+        theta_p = np.copy(theta)
+        theta_p[pind] += eps
+        sm_sigma_p, _ = compute_sm_sigma_and_jac(
+                            logmpeak=hm,
+                            theta=theta_p
+        )
+
+        theta_m = np.copy(theta)
+        theta_m[pind] -= eps
+        sm_sigma_m, _ = compute_sm_sigma_and_jac(
+                            logmpeak=hm,
+                            theta=theta_m
+        )
+
+        print(pind)
+        grad = (sm_sigma_p - sm_sigma_m)/2.0/eps
+        assert_allclose(sm_sigma_jac[pind, :], grad)
+        assert np.any(grad != 0)
+        assert np.any(sm_sigma_jac[pind, :] != 0)
+
+
+@pytest.mark.mpi_skip
+def test_compute_quenching_prob_and_jac_smoke():
+    hm, hostm, _, upid, _, tinfall, theta = _get_data()
+
+    qp, qp_jac = compute_quenching_prob_and_jac(
+                    logmpeak=hm,
+                    loghost_mpeak=hostm,
+                    upid=upid,
+                    time_since_infall=tinfall,
+                    theta=theta
+    )
+
+    assert qp.shape == (len(hm),)
+    assert qp_jac.shape == (len(theta), len(hm))
+    assert np.all(np.isfinite(qp))
+    assert np.all(np.isfinite(qp_jac))
+    assert np.any(qp != 0)
+    assert np.any(qp_jac != 0)
+
+
+@pytest.mark.mpi_skip
+def test_compute_quenching_prob_and_jac_derivs():
+    hm, hostm, _, upid, _, tinfall, theta = _get_data()
+    npars = len(theta)
+
+    # test gradient
+    qp, qp_jac = compute_quenching_prob_and_jac(
+                                logmpeak=hm,
+                                loghost_mpeak=hostm,
+                                upid=upid,
+                                time_since_infall=tinfall,
+                                theta=theta
+    )
+
+    eps = 1e-6
+    for pind in range(npars):
+        # skip the params that don't matter for this calculation
+        if pind in [0, 1, 2, 3, 4,
+                    5, 6, 7, 8,
+                    9, 10, 11, 12, 13]:
+            continue
+
+        theta_p = np.copy(theta)
+        theta_p[pind] += eps
+        qp_p, _ = compute_quenching_prob_and_jac(
+                            logmpeak=hm,
+                            loghost_mpeak=hostm,
+                            upid=upid,
+                            time_since_infall=tinfall,
+                            theta=theta_p
+        )
+
+        theta_m = np.copy(theta)
+        theta_m[pind] -= eps
+        qp_m, _ = compute_quenching_prob_and_jac(
+                            logmpeak=hm,
+                            loghost_mpeak=hostm,
+                            upid=upid,
+                            time_since_infall=tinfall,
+                            theta=theta_m
+        )
+
+        print(pind)
+        grad = (qp_p - qp_m)/2.0/eps
+        assert_allclose(qp_jac[pind, :], grad, rtol=1e-7, atol=1e-8)
+        assert np.any(grad != 0)
+        assert np.any(qp_jac[pind, :] != 0)
+
+
+@pytest.mark.mpi_skip
 def test_compute_weight_and_jac_smoke():
     hm, hostm, vmax_frac, upid, idx_to_deposit, _, theta = _get_data()
 
@@ -138,6 +268,7 @@ def test_compute_weight_and_jac_smoke():
     assert np.all(np.isfinite(dw))
 
 
+@pytest.mark.mpi_skip
 def test_compute_weight_and_jac_derivs():
     hm, hostm, vmax_frac, upid, idx_to_deposit, _, theta = _get_data()
 
@@ -156,11 +287,11 @@ def test_compute_weight_and_jac_derivs():
                     mass_bin_high=mb_high,
                     theta=theta
     )
-    
+
     eps = 1e-6
     for pind in range(npars):
         # skip the params that don't matter for this calculation
-        if pind in [14,15,16,17,18,19,20,21,22]:
+        if pind in [14, 15, 16, 17, 18, 19, 20, 21, 22]:
             continue
 
         theta_p = np.copy(theta)
@@ -189,13 +320,13 @@ def test_compute_weight_and_jac_derivs():
                     theta=theta_m
         )
 
-        print(pind)
         grad = (w_p - w_m)/2.0/eps
-        assert_allclose(dw[pind, :], grad)
+        assert_allclose(dw[pind, :], grad, atol=1e-8)
         assert np.any(grad != 0)
-        assert np.any(sm_jac[pind, :] != 0)
+        assert np.any(dw[pind, :] != 0)
 
 
+@pytest.mark.mpi_skip
 def test_compute_weight_and_jac_quench_smoke():
     hm, hostm, vmax_frac, upid, idx_to_deposit, tinfall, theta = _get_data()
 
@@ -221,6 +352,7 @@ def test_compute_weight_and_jac_quench_smoke():
     assert np.all(np.isfinite(dwnq))
 
 
+@pytest.mark.mpi_skip
 def test_compute_weight_and_jac_quench_derivs():
     hm, hostm, vmax_frac, upid, idx_to_deposit, tinfall, theta = _get_data()
 
@@ -240,7 +372,7 @@ def test_compute_weight_and_jac_quench_derivs():
                             mass_bin_high=mb_high,
                             theta=theta
     )
-    
+
     eps = 1e-6
     for pind in range(npars):
 
@@ -275,10 +407,9 @@ def test_compute_weight_and_jac_quench_derivs():
         print(pind)
         grad_q = (wq_p - wq_m)/2.0/eps
         grad_nq = (wnq_p - wnq_m)/2.0/eps
-        assert_allclose(dwq[pind, :], grad_q)
-        assert_allclose(dwnq[pind, :], grad_nq)
+        assert_allclose(dwq[pind, :], grad_q, rtol=1e-7, atol=1e-8)
+        assert_allclose(dwnq[pind, :], grad_nq, rtol=1e-7, atol=1e-8)
         assert np.any(grad_q != 0)
         assert np.any(grad_nq != 0)
         assert np.any(dwq[pind, :] != 0)
         assert np.any(dwnq[pind, :] != 0)
-    

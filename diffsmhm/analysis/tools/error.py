@@ -203,8 +203,7 @@ def mse_rpwp(
     mass_bin_low, mass_bin_high,
     zmax,
     boxsize,
-    theta,
-    return_rpwp=False
+    theta
 ):
     """
     Mean squared error for rp wp(rp).
