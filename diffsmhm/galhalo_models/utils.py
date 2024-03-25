@@ -1,7 +1,5 @@
 import numpy as np
-from jax import numpy as jax_np
-#
-import jax
+from jax.nn import sigmoid as sigmoid
 
 
 def get_1d_arrays(*args):
@@ -19,7 +17,7 @@ def get_1d_arrays(*args):
 
 
 def jax_sigmoid_exp(x, x0, k, ylo, yhi):
-    """Sigmoid function implemented w/ `jax.numpy.exp`.
+    """Sigmoid function implemented w/ `jax.nn.simgoid`.
 
     Parameters
     ----------
@@ -38,8 +36,8 @@ def jax_sigmoid_exp(x, x0, k, ylo, yhi):
     -------
     sigmoid : scalar or array-like, same shape as input
     """
-    #return ylo + (yhi - ylo) / (1 + jax_np.exp(-k * (x - x0)))
 
-    return ylo + (yhi - ylo) * jax.nn.sigmoid(k * (x-x0))
+    return ylo + (yhi - ylo) * sigmoid(k * (x-x0))
+
 
 jax_sigmoid = jax_sigmoid_exp
