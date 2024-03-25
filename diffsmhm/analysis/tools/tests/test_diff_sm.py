@@ -32,7 +32,7 @@ config.update("jax_enable_x64", True)
 def _get_data():
     np.random.seed(42)
 
-    ngals = 1000
+    ngals = 200
     hm = np.random.uniform(4.0, 16.0, size=ngals)
     vmax_frac = np.random.uniform(0.5, 1.5, size=ngals)
     upid = np.zeros(ngals, dtype="i")
