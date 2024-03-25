@@ -11,13 +11,12 @@ except ImportError:
     RANK = 0
     N_RANKS = 1
 
-from diffsmhm.analysis.tools.diff_sm import(
+from diffsmhm.analysis.tools.diff_sm import (
     compute_weight_and_jac,
     compute_weight_and_jac_quench
 )
 
 from diffsmhm.analysis.tools.rpwp import compute_rpwp
-from diffsmhm.analysis.tools.delta_sigma import compute_delta_sigma
 
 
 def mse_rpwp_quench(
@@ -280,7 +279,7 @@ def mse_rpwp(
     if RANK == 0:
         err = np.sum((rpwp-rpwp_goal)*(rpwp-rpwp_goal)) / len(rpwp)
         err_grad = np.sum(2 * rpwp_jac * (rpwp-rpwp_goal), axis=1) / len(rpwp)
-    
+
     return err, err_grad, rpwp
 
 
