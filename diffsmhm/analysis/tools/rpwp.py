@@ -12,8 +12,6 @@ except ImportError:
     RANK = 0
     N_RANKS = 1
 
-import numpy as np
-
 
 # method for rpwp given weights
 def compute_rpwp(
