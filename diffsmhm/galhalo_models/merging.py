@@ -50,7 +50,7 @@ def _jax_deposit_mstar_jax(logsm, indx_to_deposit, frac_to_deposit):
     total_mstar = total_mstar.at[indx_to_deposit].add(mstar_to_deposit)
     total_mstar = total_mstar.at[indx_to_keep].add(mstar_to_keep)
 
-    return jax_np.absolute(total_mstar)
+    return total_mstar
 
 
 def _calculate_indx_to_deposit(upids, halo_ids):
