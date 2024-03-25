@@ -37,7 +37,7 @@ def deposit_stellar_mass(logsm, indx_to_deposit, frac_to_deposit):
     return jax_np.asarray(total_mstar)
 
 
-#@jax_jit
+@jax_jit
 def _jax_deposit_mstar_jax(logsm, indx_to_deposit, frac_to_deposit):
     ngals = logsm.shape[0]
 
