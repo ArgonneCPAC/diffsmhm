@@ -36,7 +36,6 @@ def jax_sigmoid_exp(x, x0, k, ylo, yhi):
     -------
     sigmoid : scalar or array-like, same shape as input
     """
-
     return ylo + (yhi - ylo) * sigmoid(k * (x - x0))
 
 
