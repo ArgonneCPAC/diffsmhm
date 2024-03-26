@@ -35,19 +35,19 @@ from adam import adam
 from error import mse_rpwp_adam_wrapper
 
 # data files and params
-halo_file="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
-particle_file="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
-box_length = 250.0 # Mpc
-buff_wprp = 20.0 # Mpc
+halo_file = "/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
+particle_file = "/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
+box_length = 250.0  # Mpc
+buff_wprp = 20.0  # Mpc
 
 # 10.6, 11.2
 mass_bin_edges = np.array([10.6, 11.2], dtype=np.float64)
 
 rpbins = np.logspace(-1, 1.2, 13, dtype=np.float64)
-zmax = 20.0 # Mpc
+zmax = 20.0  # Mpc
 
-theta = np.array(list(smhm_params.values()) + 
-                 list(smhm_sigma_params.values()) + 
+theta = np.array(list(smhm_params.values()) +
+                 list(smhm_sigma_params.values()) +
                  list(disruption_params.values()), dtype=np.float64)
 
 n_params = len(theta)
@@ -95,7 +95,8 @@ rpwp_goal, _ = compute_rpwp(
                 boxsize=box_length
 )
 
-if RANK == 0: print("goal measurement done", flush=True)
+if RANK == 0:
+    print("goal measurement done", flush=True)
 
 # 3) do optimization
 theta_init = np.copy(theta)
@@ -155,7 +156,8 @@ rpwp_init, _ = compute_rpwp(
                 boxsize=box_length
 )
 
-if RANK == 0: print("init calc done", flush=True)
+if RANK == 0:
+    print("init calc done", flush=True)
 
 # calculate rpwp with the final theta parameters
 w, dw = compute_weight_and_jac(
@@ -182,11 +184,12 @@ rpwp_final, _ = compute_rpwp(
                 boxsize=box_length
 )
 
-if RANK == 0: print("final calc done", flush=True)
+if RANK == 0:
+    print("final calc done", flush=True)
 
 # rpwp figure
 if RANK == 0:
-    fig = plt.figure(figsize=(10,8), facecolor="w")
+    fig = plt.figure(figsize=(10, 8), facecolor="w")
 
     plt.plot(rpbins[:-1], rpwp_init, linewidth=4, c="tab:blue")
     plt.plot(rpbins[:-1], rpwp_final, linewidth=4, c="tab:orange")
@@ -206,7 +209,7 @@ if RANK == 0:
 if RANK == 0:
     error_diff = error_history[:-1] - error_history[1:]
 
-    fig = plt.figure(figsize=(10,8), facecolor="w")
+    fig = plt.figure(figsize=(10, 8), facecolor="w")
 
     plt.plot(error_diff)
 

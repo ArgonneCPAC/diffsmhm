@@ -45,6 +45,7 @@ from diffsmhm.analysis.tools.error import mse_rpwp
 
 from hmc_bounding import (
     hmc_pos_to_model_pos,
+    model_pos_to_hmc_pos,
     logdens_model_to_logdens_hmc
 )
 
@@ -158,6 +159,7 @@ if RANK == 0:
 # 3) do optimization
 
 # define functions
+
 
 # logdensity function set up; only RANK 0 deals with this
 def logdensity_fn(
@@ -335,7 +337,7 @@ else:
     rng_key = jax.random.PRNGKey(42)
 
     # transform theta for the initial position
-    initial_hmc_params = transform_model_to_hmc(theta, lower_bounds, upper_bounds)
+    initial_hmc_params = model_pos_to_hmc_pos(theta, lower_bounds, upper_bounds)
 
     # adapt the mass matrix
     initial_position = {
@@ -403,7 +405,7 @@ else:
                     states.position["satmerg_logvr_crit_clusters"][-1],
                     states.position["satmerg_logvr_k"][-1],
     ], dtype=np.float64)
-    theta_final = transform_hmc_to_model(theta_final_hmc, lower_bounds, upper_bounds)
+    theta_final = hmc_pos_to_model_pos(theta_final_hmc, lower_bounds, upper_bounds)
 
     # we're done iterating, broadcast FALSE to stop the other ranks
     cont = False
@@ -423,8 +425,8 @@ if RANK == 0:
     positions_df = pd.DataFrame.from_dict(positions)
     # need to transform from HMC positions to model positions
     for p, key in enumerate(positions_df.keys()):
-        positions_df[key] = transform_hmc_to_model(np.array(positions_df[key]),
-                                                   lower_bounds[p], upper_bounds[p])
+        positions_df[key] = hmc_pos_to_model_pos(np.array(positions_df[key]),
+                                                 lower_bounds[p], upper_bounds[p])
 
     fpath_positions = outdir+"/positions.csv"
     positions_df.to_csv(fpath_positions, index=False)

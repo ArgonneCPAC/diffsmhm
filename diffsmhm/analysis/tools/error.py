@@ -1,4 +1,5 @@
 import numpy as np
+import csv
 
 try:
     from mpi4py import MPI
@@ -36,7 +37,10 @@ def mse_rpwp_quench(
     mass_bin_high,
     zmax,
     boxsize,
-    theta
+    theta,
+    err_file=None,
+    rpwp_q_file=None,
+    rpwp_nq_file=None
 ):
     """Mean squared error for quenched rp wp(rp).
 
@@ -78,6 +82,13 @@ def mse_rpwp_quench(
         The size of the periodic volume.
     theta : array_like, shape (n_params,)
         Stellar to halo mass relation parameters.
+    err_file : string, optional
+        Location to export error of each iteration. If no value is provided,
+        errors are not exported. Note that file writing is only append mode.
+    rpwp_q_file, rpwp_nq_file : string, optional
+        Location to export quenched and unquenched rpwp of each iteration. If
+        no value is provided, rpwp's are not exported. Note that file writing
+        is only append mode.
 
     Returns
     -------
@@ -137,6 +148,20 @@ def mse_rpwp_quench(
 
         err_sum = err_q + err_nq
         err_sum_grad = err_q_jac + err_nq_jac
+
+        # do optional write to file
+        if err_file is not None:
+            with open(err_file, "a") as f:
+                writer = csv.writer(f)
+                writer.writerow(err_sum)
+        if rpwp_q_file is not None:
+            with open(rpwp_q_file, "a") as f:
+                writer = csv.writer(f)
+                writer.writerow(rpwp_q)
+        if rpwp_nq_file is not None:
+            with open(rpwp_nq_file, "a") as f:
+                writer = csv.writer(f)
+                writer.writerow(rpwp_nq)
 
     return err_sum, err_sum_grad
 

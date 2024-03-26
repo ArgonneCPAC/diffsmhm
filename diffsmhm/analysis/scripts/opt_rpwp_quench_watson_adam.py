@@ -40,28 +40,34 @@ from error import mse_rpwp_quench_adam_wrapper
 quenchfile = "/home/jwick/data/watson/smthresh10.6.passive.wp"
 unquenchfile = "/home/jwick/data/watson/smthresh10.6.active.wp"
 
-def read_watson_wp(fname,h=0.7):
-    dw = np.genfromtxt(fname,usecols=[1,2,3],names=['r','wp','wperr'])
+
+def read_watson_wp(fname, h=0.7):
+    dw = np.genfromtxt(fname, usecols=[1, 2, 3], names=['r', 'wp', 'wperr'])
     dw['r'] /= h
     dw['wp'] /= h
     dw['wperr'] /= h
     return dw
 
+
+# TODO: this is possibly not right
+
 watson_quench = read_watson_wp(quenchfile, h=1.0)
 watson_unquench = read_watson_wp(unquenchfile, h=1.0)
 
+rpbins = np.append(watson_quench["r"], 20.0)
+
+watson_quench *= rpbins
+watson_unquench *= rpbins
+
 # 2) load simulation data
-halo_file="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"                                          
-particle_file="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"    
-box_length = 250.0 # Mpc                                                        
-buff_wprp = 21.0 # Mpc  
-zmax = 20.0 # Mpc
+halo_file = "/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
+particle_file = "/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
+box_length = 250.0  # Mpc
+buff_wprp = 21.0  # Mpc
+zmax = 20.0  # Mpc
 
 mass_bin_edges = np.array([10.6, 100.0], dtype=np.float64)
 
-# TODO: this is possibly not right
-rpbins = np.append(watson_quench["r"], 20.0)
-if RANK == 0: print(rpbins, flush=True)
 
 theta = np.array([
             smhm_params["smhm_logm_crit"],
@@ -121,7 +127,7 @@ static_params = [
 ]
 
 theta, error_history = adam(
-                        static_params, 
+                        static_params,
                         theta,
                         maxiter=9999999,
                         minerr=1.0,
@@ -215,7 +221,7 @@ if RANK == 0:
     print(len(error_history), error_history[0], error_history[-1])
     print(theta)
 
-    fig, axs = plt.subplots(1,2, figsize=(16,8), facecolor="w")
+    fig, axs = plt.subplots(1, 2, figsize=(16, 8), facecolor="w")
 
     # quenched
     axs[0].plot(rpbins[:-1], rpwp_q_init, linewidth=4)
@@ -233,7 +239,8 @@ if RANK == 0:
     # un quenched
     axs[1].plot(rpbins[:-1], rpwp_nq_init, linewidth=4)
     axs[1].plot(rpbins[:-1], rpwp_nq_final, linewidth=4)
-    axs[1].plot(rpbins[:-1], watson_unquench["wp"]*watson_unquench["r"], linewidth=2, c="k")
+    axs[1].plot(rpbins[:-1], watson_unquench["wp"]*watson_unquench["r"],
+                linewidth=2, c="k")
 
     axs[1].set_xscale("log")
 
@@ -247,11 +254,10 @@ if RANK == 0:
 if RANK == 0:
     err_diff = error_history[:-1] - error_history[1:]
 
-    fig = plt.figure(figsize=(10,8), facecolor="w")
+    fig = plt.figure(figsize=(10, 8), facecolor="w")
 
-    plt.plot(error_diff)
+    plt.plot(err_diff)
 
     plt.yscale("log")
 
     plt.savefig("figures/rpwp_watson_edpi.png")
-
