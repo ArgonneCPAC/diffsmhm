@@ -36,8 +36,7 @@ def mse_rpwp_quench(
     mass_bin_high,
     zmax,
     boxsize,
-    theta,
-    return_rpwp=False
+    theta
 ):
     """Mean squared error for quenched rp wp(rp).
 
@@ -86,10 +85,6 @@ def mse_rpwp_quench(
         Sum of mean squared error of the quenched and unquenched rp wp(rp) measurement.
     err_sum_grad : array_like, shape (n_params,)
         Gradient of the error sum with respect to model parameters.
-    rpwp_q : array_like, shape (n_rpbins,)
-        The rpwp computation for quenched galaxies given input data.
-    rpwp_nq : array_like, shape (n_rpbins,)
-        The rpwp computation for unquenched galaxies given input data.
     """
 
     # calculate weights
@@ -143,7 +138,7 @@ def mse_rpwp_quench(
         err_sum = err_q + err_nq
         err_sum_grad = err_q_jac + err_nq_jac
 
-    return err_sum, err_sum_grad, rpwp_q, rpwp_nq
+    return err_sum, err_sum_grad
 
 
 # wrapper for use within adam function
@@ -280,7 +275,7 @@ def mse_rpwp(
         err = np.sum((rpwp-rpwp_goal)*(rpwp-rpwp_goal)) / len(rpwp)
         err_grad = np.sum(2 * rpwp_jac * (rpwp-rpwp_goal), axis=1) / len(rpwp)
 
-    return err, err_grad, rpwp
+    return err, err_grad
 
 
 def mse_rpwp_adam_wrapper(static_params, opt_params):
