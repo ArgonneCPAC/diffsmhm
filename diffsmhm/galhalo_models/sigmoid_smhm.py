@@ -2,7 +2,6 @@
 import numpy as np
 from collections import OrderedDict
 import jax
-from jax import numpy as jax_np
 
 
 __all__ = [
@@ -125,6 +124,8 @@ def logsm_from_logmhalo_jax_kern(logm, params):
     logmstar : array-like
         Base-10 log of stellar mass.
     """
+    # smhm_k_logm is the param that fails finite diff
+    # but only when we add logsm_at_logm_crit to the other term
     logm_crit = params[0]
     smhm_ratio_logm_crit = params[1]
     smhm_k_logm = params[2]
@@ -132,9 +133,8 @@ def logsm_from_logmhalo_jax_kern(logm, params):
     highm_index = params[4]
     logsm_at_logm_crit = logm_crit + smhm_ratio_logm_crit
 
-    numerator = highm_index - lowm_index
-    denominator = 1 + jax_np.exp(-smhm_k_logm * (logm - logm_crit))
-    powerlaw_index = lowm_index + numerator / denominator
+    sig = jax.nn.sigmoid(smhm_k_logm * (logm - logm_crit))
+    powerlaw_index = lowm_index + (highm_index - lowm_index) * sig
     return logsm_at_logm_crit + powerlaw_index * (logm - logm_crit)
 
 
