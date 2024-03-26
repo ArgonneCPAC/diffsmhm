@@ -2,6 +2,7 @@
 import numpy as np
 from collections import OrderedDict
 import jax
+from jax.nn import sigmoid as sigmoid
 
 
 __all__ = [
@@ -133,7 +134,7 @@ def logsm_from_logmhalo_jax_kern(logm, params):
     highm_index = params[4]
     logsm_at_logm_crit = logm_crit + smhm_ratio_logm_crit
 
-    sig = jax.nn.sigmoid(smhm_k_logm * (logm - logm_crit))
+    sig = sigmoid(smhm_k_logm * (logm - logm_crit))
     powerlaw_index = lowm_index + (highm_index - lowm_index) * sig
     return logsm_at_logm_crit + powerlaw_index * (logm - logm_crit)
 
