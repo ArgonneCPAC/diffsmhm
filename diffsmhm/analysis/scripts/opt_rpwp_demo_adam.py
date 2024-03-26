@@ -80,16 +80,14 @@ w, dw = compute_weight_and_jac(
             theta_goal
 )
 
-wgt_mask = w > 0.0
-
 # rpwp
 rpwp_goal, _ = compute_rpwp(
-                x1=halos["halo_x"][wgt_mask],
-                y1=halos["halo_y"][wgt_mask],
-                z1=halos["halo_z"][wgt_mask],
-                w1=w[wgt_mask],
-                w1_jac=dw[:, wgt_mask],
-                inside_subvol=halos["_inside_subvol"][wgt_mask],
+                x1=halos["halo_x"],
+                y1=halos["halo_y"],
+                z1=halos["halo_z"],
+                w1=w,
+                w1_jac=dw,
+                inside_subvol=halos["_inside_subvol"],
                 rpbins=rpbins,
                 zmax=zmax,
                 boxsize=box_length
@@ -142,15 +140,13 @@ w, dw = compute_weight_and_jac(
             theta_init
 )
 
-wgt_mask = w > 0.0
-
 rpwp_init, _ = compute_rpwp(
-                x1=halos["halo_x"][wgt_mask],
-                y1=halos["halo_y"][wgt_mask],
-                z1=halos["halo_z"][wgt_mask],
-                w1=w[wgt_mask],
-                w1_jac=dw[:, wgt_mask],
-                inside_subvol=halos["_inside_subvol"][wgt_mask],
+                x1=halos["halo_x"],
+                y1=halos["halo_y"],
+                z1=halos["halo_z"],
+                w1=w,
+                w1_jac=dw,
+                inside_subvol=halos["_inside_subvol"],
                 rpbins=rpbins,
                 zmax=zmax,
                 boxsize=box_length
@@ -170,15 +166,13 @@ w, dw = compute_weight_and_jac(
             theta
 )
 
-wgt_mask = w > 0.0
-
 rpwp_final, _ = compute_rpwp(
-                x1=halos["halo_x"][wgt_mask],
-                y1=halos["halo_y"][wgt_mask],
-                z1=halos["halo_z"][wgt_mask],
-                w1=w[wgt_mask],
-                w1_jac=dw[:, wgt_mask],
-                inside_subvol=halos["_inside_subvol"][wgt_mask],
+                x1=halos["halo_x"],
+                y1=halos["halo_y"],
+                z1=halos["halo_z"],
+                w1=w,
+                w1_jac=dw,
+                inside_subvol=halos["_inside_subvol"],
                 rpbins=rpbins,
                 zmax=zmax,
                 boxsize=box_length
