@@ -151,28 +151,25 @@ w_q, dw_q, w_nq, dw_nq = compute_weight_and_jac_quench(
                             theta_init
 )
 
-wgt_mask_quench = w_q > 0
-wgt_mask_no_quench = w_nq > 0
-
 rpwp_q_init, _ = compute_rpwp(
-                    x1=halos["halo_x"][wgt_mask_quench],
-                    y1=halos["halo_y"][wgt_mask_quench],
-                    z1=halos["halo_z"][wgt_mask_quench],
-                    w1=w_q[wgt_mask_quench],
-                    w1_jac=dw_q[:, wgt_mask_quench],
-                    inside_subvol=halos["_inside_subvol"][wgt_mask_quench],
+                    x1=halos["halo_x"],
+                    y1=halos["halo_y"],
+                    z1=halos["halo_z"],
+                    w1=w_q,
+                    w1_jac=dw_q,
+                    inside_subvol=halos["_inside_subvol"],
                     rpbins=rpbins,
                     zmax=zmax,
                     boxsize=box_length
 )
 
 rpwp_nq_init, _ = compute_rpwp(
-                    x1=halos["halo_x"][wgt_mask_no_quench],
-                    y1=halos["halo_y"][wgt_mask_no_quench],
-                    z1=halos["halo_z"][wgt_mask_no_quench],
-                    w1=w_nq[wgt_mask_no_quench],
-                    w1_jac=dw_nq[:, wgt_mask_no_quench],
-                    inside_subvol=halos["_inside_subvol"][wgt_mask_no_quench],
+                    x1=halos["halo_x"],
+                    y1=halos["halo_y"],
+                    z1=halos["halo_z"],
+                    w1=w_nq,
+                    w1_jac=dw_nq,
+                    inside_subvol=halos["_inside_subvol"],
                     rpbins=rpbins,
                     zmax=zmax,
                     boxsize=box_length
@@ -190,28 +187,25 @@ w_q, dw_q, w_nq, dw_nq = compute_weight_and_jac_quench(
                             theta
 )
 
-wgt_mask_quench = w_q > 0
-wgt_mask_no_quench = w_nq > 0
-
 rpwp_q_final, _ = compute_rpwp(
-                    x1=halos["halo_x"][wgt_mask_quench],
-                    y1=halos["halo_y"][wgt_mask_quench],
-                    z1=halos["halo_z"][wgt_mask_quench],
-                    w1=w_q[wgt_mask_quench],
-                    w1_jac=dw_q[:, wgt_mask_quench],
-                    inside_subvol=halos["_inside_subvol"][wgt_mask_quench],
+                    x1=halos["halo_x"],
+                    y1=halos["halo_y"],
+                    z1=halos["halo_z"],
+                    w1=w_q,
+                    w1_jac=dw_q,
+                    inside_subvol=halos["_inside_subvol"],
                     rpbins=rpbins,
                     zmax=zmax,
                     boxsize=box_length
 )
 
 rpwp_nq_final, _ = compute_rpwp(
-                    x1=halos["halo_x"][wgt_mask_no_quench],
-                    y1=halos["halo_y"][wgt_mask_no_quench],
-                    z1=halos["halo_z"][wgt_mask_no_quench],
-                    w1=w_nq[wgt_mask_no_quench],
-                    w1_jac=dw_nq[:, wgt_mask_no_quench],
-                    inside_subvol=halos["_inside_subvol"][wgt_mask_no_quench],
+                    x1=halos["halo_x"],
+                    y1=halos["halo_y"],
+                    z1=halos["halo_z"],
+                    w1=w_nq,
+                    w1_jac=dw_nq,
+                    inside_subvol=halos["_inside_subvol"],
                     rpbins=rpbins,
                     zmax=zmax,
                     boxsize=box_length
