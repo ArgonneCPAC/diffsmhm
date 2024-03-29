@@ -31,7 +31,7 @@ PARAM_BOUNDS = OrderedDict(
     fq_satboost_logmhost_k=(0, 2),
     fq_satboost_clusters=(0, 1),
     fq_sat_delay_time=(0, 10),
-    fq_sat_tinfall_k=(0, 2),
+    fq_sat_tinfall_k=(0.2, 5.0),
 )
 
 
