@@ -90,7 +90,7 @@ def test_calculate_indx_to_deposit_missing():
     try:
         ok = False
         _calculate_indx_to_deposit(upids, halo_ids)
-    except:
+    except AssertionError:
         ok = True
     finally:
         assert ok, "calculate_indx_to_deposit failed to identify missing upid"
@@ -101,7 +101,7 @@ def test_calculate_indx_to_deposit_missing():
     try:
         ok = False
         _calculate_indx_to_deposit(upids, halo_ids)
-    except:
+    except AssertionError:
         ok = False
     else:
         ok = True
