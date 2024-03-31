@@ -54,6 +54,11 @@ def _jax_deposit_mstar_jax(logsm, indx_to_deposit, frac_to_deposit):
 
 
 def _calculate_indx_to_deposit(upids, halo_ids):
+    # check that each upid exists among the halo IDs
+    n_missing_upid = len(np.setdiff1d(upids[upids != -1], halo_ids))
+    assert n_missing_upid == 0, "_calculate_indx_to_deposit: Missing upids"
+
+    # continue with matching indices
     orig_indices = np.arange(len(halo_ids)).astype("i8")
     indx_to_deposit = np.zeros_like(orig_indices)
 
