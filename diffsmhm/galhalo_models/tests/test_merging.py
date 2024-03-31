@@ -79,3 +79,31 @@ def test1():
     #  We set up frac_merge to be positive, so satellites should strictly lose
     #  mass from merging
     assert np.all(np.log10(d["total_mstar"][~cenmask]) < d["logsm"][~cenmask])
+
+
+@pytest.mark.mpi_skip
+def test_calculate_indx_to_deposit_missing():
+    # check that missing throws error
+    upids = np.arange(10, dtype="i")
+    halo_ids = np.arange(9, dtype="i")
+
+    try:
+        ok = False
+        _calculate_indx_to_deposit(upids, halo_ids)
+    except:
+        ok = True
+    finally:
+        assert ok, "calculate_indx_to_deposit failed to identify missing upid"
+
+    # check that all present doesn't throw error
+    upids = np.arange(9, dtype="i")
+
+    try:
+        ok = False
+        _calculate_indx_to_deposit(upids, halo_ids)
+    except:
+        ok = False
+    else:
+        ok = True
+    finally:
+        assert ok, "calculate_indx_to_deposit fails when all upids are present"
