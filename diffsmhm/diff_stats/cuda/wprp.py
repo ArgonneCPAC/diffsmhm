@@ -80,7 +80,6 @@ def _count_weighted_pairs_rppi_with_derivs_periodic_cuda(
     start = cuda.grid(1) + start_idx
     stride = cuda.gridsize(1)
 
-    #n1 = x1.shape[0]
     n1 = end_idx
     n_rp = rpbins_squared.shape[0]
 
@@ -401,7 +400,7 @@ def _count_weighted_pairs_rppi_with_derivs_cuda(
                                     break
 
 
-# NOTE: expects cupy arrays 
+# NOTE: expects cupy arrays
 def wprp_mpi_kernel_cuda(
     *,
     x1,
@@ -413,7 +412,6 @@ def wprp_mpi_kernel_cuda(
     rpbins_squared,
     zmax,
     boxsize,
-    
     threads=32,
     blocks=512,
 ):
@@ -453,21 +451,6 @@ def wprp_mpi_kernel_cuda(
     n_rp = _rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
-    # EDIT: create cuda versions
-    '''
-    x1_d = cuda.to_device(x1)
-    y1_d = cuda.to_device(y1)
-    z1_d = cuda.to_device(z1)
-
-    w1_d = cuda.to_device(w1)
-    w1_jac_d = cuda.to_device(w1_jac)
-
-    inside_subvol_d = cuda.to_device(inside_subvol)
-    _rpbins_squared_d = cuda.to_device(_rpbins_squared)
-    '''
-    # END Edit
-
-    #
     # EDIT: call onto multiple GPUs if available
     n_devices = len(cuda.gpus)
 
@@ -493,13 +476,13 @@ def wprp_mpi_kernel_cuda(
 
         w1_d = cp.copy(w1)
         w1_jac_d = cp.copy(w1_jac)
-        
+
         _rpbins_squared_d = cp.copy(_rpbins_squared)
         inside_subvol_d = cp.copy(inside_subvol)
-    
+
         result_d = cp.zeros(n_rp * n_pi, dtype=np.float64)
         result_grad_d = cp.zeros(n_grads * n_rp * n_pi, dtype=np.float64)
-        
+
         _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
             x1_d, y1_d, z1_d, w1_d, w1_jac_d, inside_subvol_d,
             _rpbins_squared_d, n_pi,
@@ -514,19 +497,14 @@ def wprp_mpi_kernel_cuda(
     res = cp.zeros(n_rp * n_pi, dtype=np.float64)
     res_grad = cp.zeros(n_grads * n_rp * n_pi, dtype=np.float64)
     for d in range(n_devices):
-        #result_cpu = result_all[d].copy_to_host()
-        #result_summed += result_cpu
         res += result_all[d]
 
-        #result_grad_cpu = result_grad_all[d].copy_to_host()
-        #result_grad_summed += result_grad_cpu
         res_grad += result_grad_all[d]
 
     res = cp.reshape(res, (n_rp, n_pi))
     res_grad = cp.reshape(res_grad, (n_grads, n_rp, n_pi))
 
     # END Edit for multi gpu per rank
-    #
 
     sums = cp.zeros(2 + 2*n_grads, dtype=np.float64)
     _sum_mask[blocks, threads](w1_d, inside_subvol_d, sums, 0)
