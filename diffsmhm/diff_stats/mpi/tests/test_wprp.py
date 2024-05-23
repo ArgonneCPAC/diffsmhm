@@ -2,6 +2,7 @@ import os
 
 from numpy.testing import assert_allclose
 import numpy as np
+import cupy as cp
 import pytest
 
 try:
@@ -157,11 +158,11 @@ def test_wprp_mpi_comp_and_reduce_cpu():
 )
 def test_wprp_mpi_comp_and_reduce_cuda():
     lbox = 120
-    zmax = 10
+    zmax = 12
     nbins = 10
     rpmax = 15
     seed = 42
-    rbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
+    rbins_squared = cp.logspace(-1, cp.log10(rpmax), nbins + 1) ** 2
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
@@ -211,7 +212,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
             z1=orig_halo_catalog["z"].astype(np.float64),
             w1=orig_halo_catalog["w1"].astype(np.float64),
             w1_jac=dw1,
-            rpbins_squared=rbins_squared,
+            rpbins_squared=np.array(rbins_squared.get()),
             zmax=zmax,
             boxsize=lbox,
         )
