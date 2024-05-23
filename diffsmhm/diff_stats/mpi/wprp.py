@@ -1,4 +1,5 @@
 import numpy as np
+import cupy as cp
 
 try:
     from mpi4py import MPI
@@ -61,24 +62,24 @@ def wprp_mpi_comp_and_reduce(
 
     with time_step("global reduction"):
         if COMM is not None and N_RANKS > 1:
-            w_tot = np.zeros_like(data.w_tot)
+            w_tot = cp.zeros_like(data.w_tot)
             COMM.Reduce(data.w_tot, w_tot, MPI.SUM, root=0)
             w_tot = w_tot[0]
 
-            w2_tot = np.zeros_like(data.w2_tot)
+            w2_tot = cp.zeros_like(data.w2_tot)
             COMM.Reduce(data.w2_tot, w2_tot, MPI.SUM, root=0)
             w2_tot = w2_tot[0]
 
-            dw_tot = np.zeros_like(data.w_jac_tot)
+            dw_tot = cp.zeros_like(data.w_jac_tot)
             COMM.Reduce(data.w_jac_tot, dw_tot, MPI.SUM, root=0)
 
-            wdw_tot = np.zeros_like(data.ww_jac_tot)
+            wdw_tot = cp.zeros_like(data.ww_jac_tot)
             COMM.Reduce(data.ww_jac_tot, wdw_tot, MPI.SUM, root=0)
 
-            dd = np.zeros_like(data.dd)
+            dd = cp.zeros_like(data.dd)
             COMM.Reduce(data.dd, dd, MPI.SUM, root=0)
 
-            dd_jac = np.zeros_like(data.dd_jac)
+            dd_jac = cp.zeros_like(data.dd_jac)
             COMM.Reduce(data.dd_jac, dd_jac, MPI.SUM, root=0)
         else:
             w_tot = data.w_tot[0]
@@ -96,11 +97,15 @@ def wprp_mpi_comp_and_reduce(
             # this is the volume of the shell
             n_pi = int(zmax)
             dpi = 1.0  # here to make the code clear, always true
-            volfac = np.pi * (rpbins_squared[1:] - rpbins_squared[:-1])
-            volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
+            volfac = cp.pi * (rpbins_squared[1:] - rpbins_squared[:-1])
+            volratio = volfac[:, None] * cp.ones(n_pi) * dpi / boxsize ** 3
 
             # finally get rr and drr
-            rr, rr_grad = compute_rr_rrgrad_eff(w_tot, dw_tot, wdw_tot, n_eff, volratio)
+            # TO DO: implement in numba cuda
+            rr, rr_grad = compute_rr_rrgrad_eff(cp.asnumpy(w_tot), cp.asnumpy(dw_tot), cp.asnumpy(wdw_tot), 
+                                                cp.asnumpy(n_eff), cp.asnumpy(volratio))
+            rr = cp.array(rr)
+            rr_grad = cp.array(rr_grad)
 
             # now produce value and derivs
             xirppi = dd / rr - 1
@@ -109,8 +114,8 @@ def wprp_mpi_comp_and_reduce(
             )
 
             # integrate over pi
-            wprp = 2.0 * dpi * np.sum(xirppi, axis=-1)
-            wprp_grad = 2.0 * dpi * np.sum(xirppi_grad, axis=-1)
+            wprp = 2.0 * dpi * cp.sum(xirppi, axis=-1)
+            wprp_grad = 2.0 * dpi * cp.sum(xirppi_grad, axis=-1)
 
             return wprp, wprp_grad
         else:

@@ -1,4 +1,5 @@
 import numpy as np
+import cupy as cp
 import jax
 import jax.numpy as jnp
 
@@ -137,9 +138,6 @@ def compute_sm_and_jac(
         theta
     )
 
-    sm = np.array(sm, dtype=np.float64)
-    sm_jac = np.array(sm_jac, dtype=np.float64).T
-
     return sm, sm_jac
 
 
@@ -176,9 +174,6 @@ def compute_sm_sigma_and_jac(
                 logmpeak,
                 theta
     )
-
-    sm_sigma = np.array(sm_sigma, dtype=np.float64)
-    sm_sigma_jac = np.array(sm_sigma_jac, dtype=np.float64).T
 
     return sm_sigma, sm_sigma_jac
 
@@ -312,14 +307,19 @@ def compute_weight_and_jac(
 
     sigma, sigma_jac = compute_sm_sigma_and_jac(logmpeak=logmpeak, theta=theta)
 
-    w = np.zeros(len(logmpeak), dtype=np.float64)
-    dw = np.zeros((sm_jac.shape[0], len(logmpeak)), dtype=np.float64)
+    # Use DLPack to create zero-copy cupy references to Jax arrays
+    sm_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm,copy=False))
+    sm_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm_jac,copy=False)).T
+    sigma_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma,copy=False))
+    sigma_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma_jac,copy=False)).T
+    w = cp.zeros(len(logmpeak), dtype=cp.float64)
+    dw = cp.zeros((sm_jac.shape[1], len(logmpeak)), dtype=cp.float64)
 
     tw_kern_mstar_bin_weights_and_derivs_cuda[blocks, threads](
-                                        sm,
-                                        sm_jac,
-                                        sigma,
-                                        sigma_jac,
+                                        sm_cp,
+                                        sm_jac_cp,
+                                        sigma_cp,
+                                        sigma_jac_cp,
                                         mass_bin_low, mass_bin_high,
                                         w,
                                         dw
