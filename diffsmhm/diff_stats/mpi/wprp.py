@@ -92,9 +92,9 @@ def wprp_mpi_comp_and_reduce(
         # now do norm by RR and compute proper grad
         if RANK == 0:
             # need be convert some things to numpy from cupy
-            try: 
+            try:
                 rpbins_squared = np.array(rpbins_squared)
-            except:
+            except TypeError:
                 rpbins_squared = np.array(rpbins_squared.get())
             print("RRRRRR:", type(rpbins_squared))
 
