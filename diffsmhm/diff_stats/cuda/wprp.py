@@ -75,12 +75,12 @@ def _sum_at_ind_nomask(w1, w2, res, atind, ind):
 @cuda.jit(fastmath=False)
 def _count_weighted_pairs_rppi_with_derivs_periodic_cuda(
     x1, y1, z1, w1, dw1, rpbins_squared, n_pi, result, result_grad,
-    boxsize, boxsize_2, start_idx, end_idx
+    boxsize, boxsize_2
 ):
-    start = cuda.grid(1) + start_idx
+    start = cuda.grid(1)
     stride = cuda.gridsize(1)
 
-    n1 = end_idx
+    n1 = x1.shape[0]
     n_rp = rpbins_squared.shape[0]
 
     # this shape is (ngrads, nbins) to attempt to keep things local in memory
@@ -206,7 +206,7 @@ def wprp_serial_cuda(
         result,
         result_grad,
         boxsize,
-        boxsize_2
+        boxsize_2,
     )
 
     res = result.copy_to_host().reshape((n_rp, n_pi))
@@ -506,6 +506,7 @@ def wprp_mpi_kernel_cuda(
 
     # END Edit for multi gpu per rank
 
+    # TODO - do this with cupy if it is available?
     sums = cp.zeros(2 + 2*n_grads, dtype=np.float64)
     _sum_mask[blocks, threads](w1_d, inside_subvol_d, sums, 0)
     _sum2_mask[blocks, threads](w1_d, inside_subvol_d, sums, 1)
