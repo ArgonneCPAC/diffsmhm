@@ -442,7 +442,7 @@ def wprp_mpi_kernel_cuda(
     result = cuda.to_device(np.zeros(n_rp * n_pi, dtype=np.float64))
     result_grad = cuda.to_device(
         np.zeros(n_grads * n_rp * n_pi, dtype=np.float64)
-    )   
+    )
     _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
         x1, y1, z1, w1, w1_jac, inside_subvol,
         _rpbins_squared, n_pi,
