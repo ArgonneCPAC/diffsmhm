@@ -1,5 +1,4 @@
 import numpy as np
-import cupy as cp
 from numba import cuda
 
 from diffsmhm.diff_stats.mpi.types import WprpMPIData
@@ -433,24 +432,27 @@ def wprp_mpi_kernel_cuda(
     wprp_mpi_data : named tuple of type WprpMPIData
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
-    assert not cp.allclose(rpbins_squared[0], 0)
-    _rpbins_squared = cp.concatenate([cp.array([0]), rpbins_squared], axis=0)
+    assert not np.allclose(rpbins_squared[0], 0)
+    _rpbins_squared = np.concatenate([[0], rpbins_squared], axis=0)
 
     n_grads = w1_jac.shape[0]
     n_rp = _rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
-    result = cp.zeros(n_rp * n_pi, dtype=np.float64)
-    result_grad = cp.zeros(n_grads * n_rp * n_pi, dtype=np.float64)    
+    result = cuda.to_device(np.zeros(n_rp * n_pi, dtype=np.float64))
+    result_grad = cuda.to_device(
+        np.zeros(n_grads * n_rp * n_pi, dtype=np.float64)
+    )   
     _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
         x1, y1, z1, w1, w1_jac, inside_subvol,
         _rpbins_squared, n_pi,
         result, result_grad,
     )
-    res = result.reshape((n_rp, n_pi))
-    res_grad = result_grad.reshape((n_grads, n_rp, n_pi))
+    res = result.copy_to_host().reshape((n_rp, n_pi))
+    res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
 
-    sums = cp.zeros(2 + 2*n_grads, dtype=np.float64)
+    # TODO - do this with cupy if it is available?
+    sums = cuda.to_device(np.zeros(2 + 2*n_grads, dtype=np.float64))
     _sum_mask[blocks, threads](w1, inside_subvol, sums, 0)
     _sum2_mask[blocks, threads](w1, inside_subvol, sums, 1)
     for g in range(n_grads):
@@ -460,6 +462,7 @@ def wprp_mpi_kernel_cuda(
         _sum_at_ind_mask[blocks, threads](
             w1, w1_jac, inside_subvol, sums, g, 2+n_grads+g
         )
+    sums = sums.copy_to_host()
 
     # convert to differential
     n_rp = rpbins_squared.shape[0] - 1
