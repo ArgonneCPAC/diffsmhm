@@ -100,7 +100,6 @@ def wprp_mpi_comp_and_reduce(
             volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
 
             # finally get rr and drr
-            # TO DO: implement in numba cuda
             rr, rr_grad = compute_rr_rrgrad_eff(w_tot, dw_tot, wdw_tot, n_eff, volratio)
 
             # now produce value and derivs
