@@ -163,15 +163,17 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     try:
         _ = cp.array([1])
         xp = cp
+        can_cupy = True
     except RuntimeError:
         xp = np
+        can_cupy = False
 
     lbox = 120
     zmax = 12
     nbins = 10
     rpmax = 15
     seed = 42
-    rbins_squared = xp.logspace(-1, xp.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = xp.logspace(-1, xp.log10(rpmax), nbins + 1) ** 2
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
@@ -200,13 +202,18 @@ def test_wprp_mpi_comp_and_reduce_cuda():
         w1=xp.asarray(halo_catalog_jax["w1"]).astype(xp.float64),
         w1_jac=xp.asarray(_dw1).astype(xp.float64),
         inside_subvol=xp.asarray(halo_catalog_jax["_inside_subvol"]),
-        rpbins_squared=rbins_squared,
+        rpbins_squared=rpbins_squared,
         zmax=zmax,
         boxsize=lbox,
         kernel_func=wprp_mpi_kernel_cuda,
     )
 
     if RANK == 0:
+        if can_cupy:
+            rpbins_squared_cpu = np.array(rpbins_squared.get())
+        else:
+            rpbins_squared_cpu = np.copy(rpbins_squared)
+
         # compare to serial computation
         orig_halo_catalog = _gen_data(
             seed=seed,
@@ -226,7 +233,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
             z1=orig_halo_catalog["z"].astype(np.float64),
             w1=orig_halo_catalog["w1"].astype(np.float64),
             w1_jac=dw1,
-            rpbins_squared=np.array(rbins_squared.get()),
+            rpbins_squared=rpbins_squared_cpu,
             zmax=zmax,
             boxsize=lbox,
         )
