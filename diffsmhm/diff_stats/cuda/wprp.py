@@ -186,11 +186,10 @@ def wprp_serial_cuda(
     wprp_grad : array-like, shape (n_grads, n_rpbins)
         The gradients of the projected correlation function.
     """
-    assert not np.allclose(rpbins_squared[0], 0)
-    _rpbins_squared = np.concatenate([[0], rpbins_squared], axis=0)
+    assert np.allclose(rpbins_squared[0], 0.0)
 
     n_grads = w1_jac.shape[0]
-    n_rp = _rpbins_squared.shape[0] - 1
+    n_rp = rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
     result = cuda.to_device(np.zeros(n_rp * n_pi, dtype=np.float64))
@@ -201,7 +200,7 @@ def wprp_serial_cuda(
 
     _count_weighted_pairs_rppi_with_derivs_periodic_cuda[blocks, threads](
         x1, y1, z1, w1, w1_jac,
-        _rpbins_squared,
+        rpbins_squared,
         n_pi,
         result,
         result_grad,
@@ -456,7 +455,7 @@ def wprp_mpi_kernel_cuda(
     assert xp.allclose(rpbins_squared[0], 0)
 
     n_grads = w1_jac.shape[0]
-    n_rp = _rpbins_squared.shape[0] - 1
+    n_rp = rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
     # use multiple GPUs if available
@@ -488,7 +487,7 @@ def wprp_mpi_kernel_cuda(
         w1_d = xp.copy(w1)
         w1_jac_d = xp.copy(w1_jac)
 
-        _rpbins_squared_d = xp.copy(_rpbins_squared)
+        rpbins_squared_d = xp.copy(rpbins_squared)
         inside_subvol_d = xp.copy(inside_subvol)
 
         result_d = xp.zeros(n_rp * n_pi, dtype=np.float64)
@@ -497,7 +496,7 @@ def wprp_mpi_kernel_cuda(
         # launch kernel
         _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
             x1_d, y1_d, z1_d, w1_d, w1_jac_d, inside_subvol_d,
-            _rpbins_squared_d, n_pi,
+            rpbins_squared_d, n_pi,
             result_d, result_grad_d,
             start_idx, end_idx
         )
