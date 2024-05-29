@@ -105,7 +105,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
     zmax = 40.0
     lov = max(rpmax, zmax)
 
-    rpbins = np.linspace(0.1, rpmax, n_bins+1)
+    rpbins = np.linspace(0.0, rpmax, n_bins+1)
 
     # get data
     halo_cat_orig, particle_cat_orig = _gen_data(n_halos, n_particles, n_pars,
