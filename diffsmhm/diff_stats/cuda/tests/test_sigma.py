@@ -24,7 +24,7 @@ def test_sigma_serial_cuda():
 
     n_pars = 3
 
-    rpbins = np.linspace(0.1, rpmax, n_bins+1)
+    rpbins = np.linspace(0.0, rpmax, n_bins+1)
 
     # get data
     halo_cat, particle_cat = _gen_data(n_halos, n_particles, n_pars, lbox, seed)
