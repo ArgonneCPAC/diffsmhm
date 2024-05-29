@@ -160,18 +160,18 @@ def test_wprp_mpi_comp_and_reduce_cpu():
     reason="numba not in CUDA simulator mode or no CUDA-capable GPU is available",
 )
 def test_wprp_mpi_comp_and_reduce_cuda():
-    lbox = 120
-    zmax = 12
-    nbins = 10
-    rpmax = 15
-    seed = 42
-    rbins_squared = cp.logspace(-1, cp.log10(rpmax), nbins + 1) ** 2
-
     try:
         _ = cp.array([1])
         xp = cp
     except RuntimeError:
         xp = np
+
+    lbox = 120
+    zmax = 12
+    nbins = 10
+    rpmax = 15
+    seed = 42
+    rbins_squared = xp.logspace(-1, xp.log10(rpmax), nbins + 1) ** 2
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
