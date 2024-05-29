@@ -392,7 +392,6 @@ def sigma_mpi_kernel_cuda(
     sigma_grad_1st : array-like, shape(n_grads, n_rpbins)
         Partial sum of the first term of the gradients for sigma.
     """
-
     # check if cupy is available
     # bc github CI doesn't work with cupy currently
     try:
