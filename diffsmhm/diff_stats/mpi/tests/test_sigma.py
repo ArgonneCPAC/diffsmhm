@@ -212,7 +212,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
 
     halo_dw1 = np.stack([halo_catalog["dw1_%d" % h] for h in range(n_pars)], axis=0)
 
-    # make jax version that will be on gpu if available 
+    # make jax version that will be on gpu if available
     halo_catalog_jax = OrderedDict()
     for k in halo_catalog.keys():
         halo_catalog_jax[k] = jnp.copy(halo_catalog[k])
