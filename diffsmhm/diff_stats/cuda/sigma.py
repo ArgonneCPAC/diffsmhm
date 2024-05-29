@@ -1,4 +1,6 @@
 import numpy as np
+import cupy as cp
+
 from numba import cuda
 
 import math
@@ -218,9 +220,11 @@ def _count_particles(
     result, result_grad
 ):
 
+    # start position depends on thread position and designated chunk
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
 
+    # end position for designated chunk
     n_halos = len(xh)
     n_particles = len(xp)
     n_bins = len(rpbins) - 1
@@ -389,27 +393,95 @@ def sigma_mpi_kernel_cuda(
         Partial sum of the first term of the gradients for sigma.
     """
 
+    # check if cupy is available
+    # bc github CI doesn't work with cupy currently
+    try:
+        _ = cp.array([1])
+        can_cupy = True
+        ncp = cp
+    except RuntimeError:
+        can_cupy = False
+        qp = np
+
     # set up sizes
     n_grads = wh_jac.shape[0]
-
     n_rpbins = len(rpbins) - 1
 
-    # set up device arrays
-    sigma_device = cuda.to_device(np.zeros(n_rpbins, dtype=np.float64))
-    sigma_grad_1st_device = cuda.to_device(np.zeros((n_grads, n_rpbins),
-                                           dtype=np.float64))
+    n_devices = 1
+    if can_cupy:
+        n_devices = len(cuda.gpus)
 
-    # do the actual counting on GPU
-    _count_particles[blocks, threads](
-                                        xh, yh, zh, wh, wh_jac, n_grads,
-                                        xp, yp, zp,
-                                        rpbins,
-                                        zmax,
-                                        sigma_device,
-                                        sigma_grad_1st_device
-                                     )
+    # split the data into chunks for each device
+    avg, rem = divmod(len(xp), n_devices)
+    device_count = [avg + 1 if p < rem else avg for p in range(n_devices)]
+    device_displ = [sum(device_count[:p]) for p in range(n_devices)]
+    # list of results for combination later
+    result_all = []
+    result_grad_all = []
+    for d in range(n_devices):
+        # get this chunk range
+        count = device_count[d]
+        displ = device_displ[d]
+        start_idx = displ
+        end_idx = displ + count
 
-    sigma_exp = sigma_device.copy_to_host()
-    sigma_grad_1st = sigma_grad_1st_device.copy_to_host().reshape((n_grads, n_rpbins))
+        # assuming cupy, copy data to relevant device
+        if can_cupy:
+            cp.cuda.Device(d).use()
+        xh_d = qp.copy(xh)
+        yh_d = qp.copy(yh)
+        zh_d = qp.copy(zh)
 
-    return sigma_exp, sigma_grad_1st
+        wh_d = qp.copy(wh)
+        wh_jac_d = qp.copy(wh_jac)
+
+        # unlike wprp we can just cut down the copied arrays
+        # and doing it here is faster than on the halos
+        xp_d = qp.copy(xp[start_idx:end_idx])
+        yp_d = qp.copy(yp[start_idx:end_idx])
+        zp_d = qp.copy(zp[start_idx:end_idx])
+
+        rpbins_d = cx.copy(rpbins)
+
+        sigma_d = cx.zeros(n_rpbins, dtype=qp.float64)
+        sigma_grad_1st_d = cx.zeros((n_grads, n_rpbins),
+                                    dtype=qp.float64)
+
+        # launch kernel
+        _count_particles[blocks, threads](
+                                            xh_d, yh_d, zh_d,
+                                            wh_d, wh_jac_d, n_grads,
+                                            xp_d, yp_d, zp_d,
+                                            rpbins_d,
+                                            zmax,
+                                            sigma_d,
+                                            sigma_grad_1st_d
+                                         )
+
+        # add chunked result to list
+        result_all.append(sigma_d)
+        result_grad_all.append(sigma_grad_1st_d)
+
+    # now add the distributed calculation
+    if can_cupy:
+        cp.cuda.Device(n_devices-1).use()
+    sigma_exp = qp.copy(result_all[-1])
+    sigma_grad_1st = cx.copy(result_grad_all[-1])
+    for d in range(n_devices-1):
+        # let's be explicit moving data between devices
+        rd = qp.copy(result_all[d])
+        rd_grad = qp.copy(result_grad_all[d])
+
+        sigma_exp += rd
+        sigma_grad_1st += rd_grad
+
+    sigma_grad_1st = sigma_grad_1st.reshape((n_grads, n_rpbins))
+
+    # return data on cpu
+    if can_cupy:
+        sigma_exp_cpu = qp.asnumpy(sigma_exp.get())
+        sigma_grad_1st_cpu = qp.asnumpy(sigma_grad_1st.get())
+
+        return sigma_exp_cpu, sigma_grad_1st_cpu
+    else:
+        return sigma_exp, sigma_grad_1st
