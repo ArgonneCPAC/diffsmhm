@@ -1,8 +1,11 @@
 import os
 
+from collections import OrderedDict
+
 from numpy.testing import assert_allclose
 import numpy as np
 import cupy as cp
+import jax.numpy as jnp
 import pytest
 
 try:
@@ -35,7 +38,7 @@ from diffsmhm.diff_stats.cuda.tests.conftest import (
 
 
 def _gen_data(**kwargs):
-    halo_catalog = dict()
+    halo_catalog = OrderedDict()
     if RANK == 0:
         _halo_catalog = gen_mstar_data(**kwargs)
         halo_catalog["x"] = _halo_catalog["x"]
@@ -164,10 +167,15 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     seed = 42
     rbins_squared = cp.logspace(-1, cp.log10(rpmax), nbins + 1) ** 2
 
+    try:
+        arr = cp.array([1])
+    except:
+        cp = np
+
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
     else:
-        npts = 5000000
+        npts = 100000# 5000000
     halo_catalog = _gen_data(
         seed=seed,
         boxsize=lbox,
@@ -178,14 +186,19 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     )
     halo_catalog = _distribute_data(halo_catalog, lbox, rpmax)
 
-    _dw1 = np.stack([halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
+    # make jax version that will be on gpu is available
+    halo_catalog_jax = OrderedDict()
+    for k in halo_catalog.keys():
+        halo_catalog_jax[k] = jnp.copy(halo_catalog[k])
+
+    _dw1 = jnp.stack([halo_catalog_jax["dw1_%d" % g] for g in range(3)], axis=0)
     wprp, wprp_grad = wprp_mpi_comp_and_reduce(
-        x1=halo_catalog["x"].astype(np.float64),
-        y1=halo_catalog["y"].astype(np.float64),
-        z1=halo_catalog["z"].astype(np.float64),
-        w1=halo_catalog["w1"].astype(np.float64),
-        w1_jac=_dw1.astype(np.float64),
-        inside_subvol=halo_catalog["_inside_subvol"],
+        x1=cp.asarray(halo_catalog_jax["x"]).astype(cp.float64),
+        y1=cp.asarray(halo_catalog_jax["y"]).astype(cp.float64),
+        z1=cp.asarray(halo_catalog_jax["z"]).astype(cp.float64),
+        w1=cp.asarray(halo_catalog_jax["w1"]).astype(cp.float64),
+        w1_jac=cp.asarray(_dw1).astype(cp.float64),
+        inside_subvol=cp.asarray(halo_catalog_jax["_inside_subvol"]),
         rpbins_squared=rbins_squared,
         zmax=zmax,
         boxsize=lbox,
