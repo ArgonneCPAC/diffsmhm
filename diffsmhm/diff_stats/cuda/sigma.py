@@ -398,7 +398,7 @@ def sigma_mpi_kernel_cuda(
     try:
         _ = cp.array([1])
         can_cupy = True
-        ncp = cp
+        qp = cp
     except RuntimeError:
         can_cupy = False
         qp = np
@@ -441,10 +441,10 @@ def sigma_mpi_kernel_cuda(
         yp_d = qp.copy(yp[start_idx:end_idx])
         zp_d = qp.copy(zp[start_idx:end_idx])
 
-        rpbins_d = cx.copy(rpbins)
+        rpbins_d = qp.copy(rpbins)
 
-        sigma_d = cx.zeros(n_rpbins, dtype=qp.float64)
-        sigma_grad_1st_d = cx.zeros((n_grads, n_rpbins),
+        sigma_d = qp.zeros(n_rpbins, dtype=qp.float64)
+        sigma_grad_1st_d = qp.zeros((n_grads, n_rpbins),
                                     dtype=qp.float64)
 
         # launch kernel
@@ -466,7 +466,7 @@ def sigma_mpi_kernel_cuda(
     if can_cupy:
         cp.cuda.Device(n_devices-1).use()
     sigma_exp = qp.copy(result_all[-1])
-    sigma_grad_1st = cx.copy(result_grad_all[-1])
+    sigma_grad_1st = qp.copy(result_grad_all[-1])
     for d in range(n_devices-1):
         # let's be explicit moving data between devices
         rd = qp.copy(result_all[d])
