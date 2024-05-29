@@ -98,7 +98,7 @@ def test_sigma_serial_cpu_derivs():
             xp=parts_x,
             yp=parts_y,
             zp=parts_z,
-            rpbins=halos["rp_bins"],
+            rpbins=bins,
             zmax=zmax,
             boxsize=boxsize
         )
@@ -113,7 +113,7 @@ def test_sigma_serial_cpu_derivs():
             xp=parts_x,
             yp=parts_y,
             zp=parts_z,
-            rpbins=halos["rp_bins"],
+            rpbins=bins,
             zmax=zmax,
             boxsize=boxsize
         )
