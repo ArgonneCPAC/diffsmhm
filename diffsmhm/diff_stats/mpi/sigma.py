@@ -1,4 +1,5 @@
 import numpy as np
+import cupy as cp
 
 try:
     from mpi4py import MPI
@@ -60,8 +61,8 @@ def sigma_mpi_comp_and_reduce(
         The gradients of the 2D surface density function.
     """
 
-    # assert smallest bin is not zero
-    assert rpbins[0] > 0
+    # assert smallest bin starts at zero
+    assert rpbins[0] == 0.0
 
     # sizing parameters
     n_grads = wh_jac.shape[0]
@@ -100,11 +101,20 @@ def sigma_mpi_comp_and_reduce(
     for p in range(n_grads):
         COMM.Reduce(sigma_grad_1st[p, :], sum_sigma_grad_1st[p, :], op=MPI.SUM, root=0)
 
+    # some of the np/cp awkwardness
+    try:
+        rpbins = np.array(rpbins)
+        sum_weights_rank = np.array([np.sum(wh[inside_subvol])], dtype=np.float64)
+    except TypeError:
+        rpbins= np.array(rpbins.get())
+        sum_weights_rank = np.array([cp.sum(wh[inside_subvol]).get()], dtype=np.float64)
+        qp = np
+
     # do radial normalization
     sigma_red /= np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
 
     # get weights total
-    sum_weights_rank = np.array([sum(wh[inside_subvol])], dtype=np.float64)
+    #sum_weights_rank = np.array([qp.sum(wh[inside_subvol])], dtype=np.float64)
     sum_weights_all = np.ones(1, dtype=np.float64)
 
     COMM.Reduce(sum_weights_rank, sum_weights_all, op=MPI.SUM, root=0)
