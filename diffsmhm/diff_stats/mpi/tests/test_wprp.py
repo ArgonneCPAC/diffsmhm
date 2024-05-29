@@ -86,7 +86,8 @@ def test_wprp_mpi_comp_and_reduce_cpu():
     rpmax = 15
     seed = 42
     npts = 50000
-    rbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = np.concatenate(np.array[0.0], rpbins_squared)
     halo_catalog = _gen_data(
         seed=seed,
         boxsize=lbox,
@@ -105,7 +106,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
         w1=halo_catalog["w1"].astype(np.float64),
         w1_jac=_dw1.astype(np.float64),
         inside_subvol=halo_catalog["_inside_subvol"],
-        rpbins_squared=rbins_squared,
+        rpbins_squared=rpbins_squared,
         zmax=zmax,
         boxsize=lbox,
         kernel_func=wprp_mpi_kernel_cpu,
@@ -131,7 +132,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
             z1=orig_halo_catalog["z"].astype(np.float64),
             w1=orig_halo_catalog["w1"].astype(np.float64),
             w1_jac=dw1,
-            rpbins_squared=rbins_squared,
+            rpbins_squared=rpbins_squared,
             zmax=zmax,
             boxsize=lbox,
         )
@@ -174,6 +175,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     rpmax = 15
     seed = 42
     rpbins_squared = xp.logspace(-1, xp.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = xp.concatenate(xp.array([0.0]), rpbins_squared)
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
