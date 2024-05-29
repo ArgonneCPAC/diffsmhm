@@ -186,10 +186,11 @@ def wprp_serial_cuda(
     wprp_grad : array-like, shape (n_grads, n_rpbins)
         The gradients of the projected correlation function.
     """
-    assert np.allclose(rpbins_squared[0], 0.0)
+    assert not np.allclose(rpbins_squared[0], 0.0)
+    _rpbins_squared = np.concatenate([[0], rpbins_squared], axis=0)
 
     n_grads = w1_jac.shape[0]
-    n_rp = rpbins_squared.shape[0] - 1
+    n_rp = _rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
     result = cuda.to_device(np.zeros(n_rp * n_pi, dtype=np.float64))
@@ -200,7 +201,7 @@ def wprp_serial_cuda(
 
     _count_weighted_pairs_rppi_with_derivs_periodic_cuda[blocks, threads](
         x1, y1, z1, w1, w1_jac,
-        rpbins_squared,
+        _rpbins_squared,
         n_pi,
         result,
         result_grad,
