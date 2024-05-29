@@ -65,6 +65,9 @@ def test_sigma_serial_cpu_derivs():
     rng = np.random.RandomState(seed=rseed)
 
     halos = gen_mstar_data(boxsize=boxsize, npts=n_halos, seed=rseed, rpmax=20)
+    # radial bins
+    n_bins = 5
+    bins = np.linspace(0.0, 10.0, n_bins+1)
 
     parts_x = rng.uniform(0.0, boxsize, n_particles)
     parts_y = rng.uniform(0.0, boxsize, n_particles)
@@ -78,7 +81,7 @@ def test_sigma_serial_cpu_derivs():
         xp=parts_x,
         yp=parts_y,
         zp=parts_z,
-        rpbins=halos["rp_bins"],
+        rpbins=bins,
         zmax=zmax,
         boxsize=boxsize
     )
