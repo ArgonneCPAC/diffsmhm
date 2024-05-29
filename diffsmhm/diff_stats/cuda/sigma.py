@@ -294,7 +294,7 @@ def sigma_serial_cuda(
     """
 
     # ensure smallest bin is not zero
-    assert rpbins[0] > 0
+    assert rpbins[0] == 0.0
 
     # set up sizes
     n_grads = wh_jac.shape[0]
