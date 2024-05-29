@@ -54,8 +54,8 @@ from diffsmhm.analysis.scripts.hmc_bounding import (
 )
 
 # data files and rpwp params
-halo_file="/grand/gpu_hack/diffstuff/value_added_orphan_complete_bpl_1.002310.h5"
-particle_file="/grand/gpu_hack/diffstuff/hlist_1.00231.particles.halotools_v0p4.hdf5"
+halo_file="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
+particle_file="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
 box_length = 250.0 # Mpc
 buff_wprp = 20.0 # Mpc
 
@@ -74,8 +74,8 @@ n_params = len(theta)
 n_rpbins = len(rpbins) - 1
 
 # hmc params
-n_warmup_steps = 10
-n_iter = 10
+n_warmup_steps = 1
+n_iter = 1
 #
 hmcut = 14.6
 
@@ -123,6 +123,11 @@ halos, _ = load_and_chop_data_bolshoi_planck(
 
 idx_to_deposit = _calculate_indx_to_deposit(halos["upid"], halos["halo_id"])
 
+# make a jax gpu version of the catalog
+halos_gpu = OrderedDict()
+for k in halos.keys():
+    halos_gpu[k] = jnp.copy(halos[k])
+
 print(RANK, "data loaded", len(idx_to_deposit), flush=True)
 
 # 2) obtain "goal" measurement
@@ -136,10 +141,10 @@ if RANK == 0:
 # rpwp, quenched and unquenched
 t0 = time.time()
 w, dw = compute_weight_and_jac(
-            logmpeak=halos["logmpeak"],
-            loghost_mpeak=halos["loghost_mpeak"],
-            log_vmax_by_vmpeak=halos["logvmax_frac"],
-            upid=halos["upid"],
+            logmpeak=halos_gpu["logmpeak"],
+            loghost_mpeak=halos_gpu["loghost_mpeak"],
+            log_vmax_by_vmpeak=halos_gpu["logvmax_frac"],
+            upid=halos_gpu["upid"],
             idx_to_deposit=idx_to_deposit,
             mass_bin_low=mass_bin_edges[0],
             mass_bin_high=mass_bin_edges[1],
@@ -157,13 +162,13 @@ print(RANK, "n gals:", len(w[full_mask]), flush=True)
 
 t0 = time.time()
 wprp_goal, _ = wprp_mpi_comp_and_reduce(
-                x1=cp.asarray(cp.array(halos["halo_x"])[full_mask].astype(cp.float64)),
-                y1=cp.asarray(cp.array(halos["halo_y"])[full_mask].astype(cp.float64)),
-                z1=cp.asarray(cp.array(halos["halo_z"])[full_mask].astype(cp.float64)),
-                w1=cp.asarray(w[full_mask].astype(cp.float64)),
-                w1_jac=cp.asarray(dw[:, full_mask].astype(cp.float64)),
-                inside_subvol=cp.asarray(cp.array(halos["_inside_subvol"])[full_mask]),
-                rpbins_squared=cp.array(rpbins**2),
+                x1=cp.asarray(halos_gpu["halo_x"])[full_mask].astype(cp.float64),
+                y1=cp.asarray(halos_gpu["halo_y"])[full_mask].astype(cp.float64),
+                z1=cp.asarray(halos_gpu["halo_z"])[full_mask].astype(cp.float64),
+                w1=w[full_mask].astype(cp.float64),
+                w1_jac=dw[:, full_mask].astype(cp.float64),
+                inside_subvol=cp.asarray(halos_gpu["_inside_subvol"])[full_mask],
+                rpbins_squared=rpbins**2,
                 zmax=zmax,
                 boxsize=box_length,
                 kernel_func=wprp_mpi_kernel_cuda
@@ -174,7 +179,7 @@ if RANK == 0:
     print("goal wprp done in:", t1-t0, flush=False)
     print("goal wprp:", wprp_goal, flush=True)
 
-"""
+
 # 3) do optimization
 ncalls = np.array([0], dtype="i")
 
@@ -216,13 +221,15 @@ def logdensity(
 def potential(
     theta,
     wprp_goal=wprp_goal,
-    log_halomass=halos["logmpeak"],
-    log_host_halomass=halos["loghost_mpeak"],
-    log_vmax_by_vmpeak=halos["logvmax_frac"],
-    halo_x=halos["halo_x"], halo_y=halos["halo_y"], halo_z=halos["halo_z"],
-    upid=halos["upid"],
+    log_halomass=halos_gpu["logmpeak"],
+    log_host_halomass=halos_gpu["loghost_mpeak"],
+    log_vmax_by_vmpeak=halos_gpu["logvmax_frac"],
+    halo_x=halos_gpu["halo_x"],
+    halo_y=halos_gpu["halo_y"],
+    halo_z=halos_gpu["halo_z"],
+    upid=halos_gpu["upid"],
     idx_to_deposit=idx_to_deposit,
-    inside_subvol=halos["_inside_subvol"],
+    inside_subvol=halos_gpu["_inside_subvol"],
     mass_bin_low=mass_bin_edges[0], mass_bin_high=mass_bin_edges[1],
     rpbins=rpbins,
     zmax=zmax,
@@ -239,38 +246,35 @@ def potential(
                 log_vmax_by_vmpeak=log_vmax_by_vmpeak,
                 upid=upid,
                 idx_to_deposit=idx_to_deposit,
-                mass_bin_low=mass_bin_edges[0],
-                mass_bin_high=mass_bin_edges[1],
-                theta=theta
+                mass_bin_low=mass_bin_low,
+                mass_bin_high=mass_bin_high,
+                theta=jax.device_put(theta, jax.devices()[0])
     )
 
     # mask out gals with zero weight and zero weight grad
     mask_wgt = w != 0.0
-    mask_dwgt = np.sum(np.abs(dw), axis=0) != 0.0
+    mask_dwgt = cp.sum(cp.abs(dw), axis=0) != 0.0
     full_mask = mask_wgt & mask_dwgt
 
-    if len(halo_x[full_mask]) == 0:
-        print(RANK, "zero condition", flush=True)
-
-    try:
-        wprp, wprp_grad = wprp_mpi_comp_and_reduce(
-                            x1=np.asarray(halo_x[full_mask].astype(np.float64)),
-                            y1=np.asarray(halo_y[full_mask].astype(np.float64)),
-                            z1=np.asarray(halo_z[full_mask].astype(np.float64)),
-                            w1=np.asarray(w[full_mask].astype(np.float64)),
-                            w1_jac=np.asarray(dw[:, full_mask].astype(np.float64)),
-                            inside_subvol=np.asarray(inside_subvol[full_mask]),
-                            rpbins_squared=rpbins**2,
-                            zmax=zmax,
-                            boxsize=boxsize,
-                            kernel_func=wprp_mpi_kernel_cuda
-        )
-    except:
+    if len(w[full_mask]) == 0:
         print("ZERO WEIGHT CONDITION")
         print(theta, flush=True)
         COMM.Bcast([-1*np.ones_like(theta, dtype=np.float64), MPI.DOUBLE], root=0)
         print("EXITING")
         exit(1)
+
+    wprp, wprp_grad = wprp_mpi_comp_and_reduce(
+                        x1=cp.asarray(halo_x)[full_mask].astype(cp.float64),
+                        y1=cp.asarray(halo_y)[full_mask].astype(cp.float64),
+                        z1=cp.asarray(halo_z)[full_mask].astype(cp.float64),
+                        w1=cp.asarray(w)[full_mask].astype(cp.float64),
+                        w1_jac=cp.asarray(dw)[:, full_mask].astype(cp.float64),
+                        inside_subvol=cp.asarray(inside_subvol)[full_mask],
+                        rpbins_squared=rpbins**2,
+                        zmax=zmax,
+                        boxsize=boxsize,
+                        kernel_func=wprp_mpi_kernel_cuda
+    )
 
     cov = 0.1 * wprp_goal
 
@@ -313,6 +317,19 @@ get_potential.defvjp(vjp_fwd, vjp_bwd)
 
 # this is where we split up the ranks
 
+# tmp
+"""
+ldg = jax.jacrev(logdensity)
+if RANK == 0:
+    #anyout = potential(theta_goal)
+    #anyout = get_potential(theta_goal)
+    thmc = model_pos_to_hmc_pos(theta_goal, lower_bounds, upper_bounds)
+    anyout = logdensity(thmc)
+    anyout = ldg(thmc)
+    # end if these pass
+    COMM.Bcast([-1*np.ones_like(theta, dtype=np.float64), MPI.DOUBLE], root=0)
+"""
+
 # sampler set up 
 
 # non 0 mpi ranks just loop until told to stop
@@ -328,10 +345,10 @@ if RANK > 0:
 
         # do computation with jax
         w, dw = compute_weight_and_jac(
-                    logmpeak=halos["logmpeak"],
-                    loghost_mpeak=halos["loghost_mpeak"],
-                    log_vmax_by_vmpeak=halos["logvmax_frac"],
-                    upid=halos["upid"],
+                    logmpeak=halos_gpu["logmpeak"],
+                    loghost_mpeak=halos_gpu["loghost_mpeak"],
+                    log_vmax_by_vmpeak=halos_gpu["logvmax_frac"],
+                    upid=halos_gpu["upid"],
                     idx_to_deposit=idx_to_deposit,
                     mass_bin_low=mass_bin_edges[0],
                     mass_bin_high=mass_bin_edges[1],
@@ -340,20 +357,21 @@ if RANK > 0:
 
         # mask out gals with zero weight and zero weight grad
         mask_wgt = w != 0.0
-        mask_dwgt = np.sum(np.abs(dw), axis=0) != 0.0
+        mask_dwgt = cp.sum(cp.abs(dw), axis=0) != 0.0
         full_mask = mask_wgt & mask_dwgt
+        full_mask = full_mask.get()
 
-        if len(halos["halo_x"][full_mask]) == 0:
+        if len(halos_gpu["halo_x"][full_mask]) == 0:
             print(RANK, "zero condition", flush=True)
 
         # do computation with CUDA
         _, _ = wprp_mpi_comp_and_reduce(
-                    x1=np.asarray(halos["halo_x"][full_mask].astype(np.float64)),
-                    y1=np.asarray(halos["halo_y"][full_mask].astype(np.float64)),
-                    z1=np.asarray(halos["halo_z"][full_mask].astype(np.float64)),
-                    w1=np.asarray(w[full_mask].astype(np.float64)),
-                    w1_jac=np.asarray(dw[:, full_mask].astype(np.float64)),
-                    inside_subvol=np.asarray(halos["_inside_subvol"][full_mask]),
+                    x1=cp.asarray(halos_gpu["halo_x"])[full_mask].astype(cp.float64),
+                    y1=cp.asarray(halos_gpu["halo_y"])[full_mask].astype(cp.float64),
+                    z1=cp.asarray(halos_gpu["halo_z"])[full_mask].astype(cp.float64),
+                    w1=cp.asarray(w)[full_mask].astype(cp.float64),
+                    w1_jac=cp.asarray(dw)[:, full_mask].astype(cp.float64),
+                    inside_subvol=cp.asarray(halos_gpu["_inside_subvol"])[full_mask],
                     rpbins_squared=rpbins**2,
                     zmax=zmax,
                     boxsize=box_length,
@@ -362,7 +380,7 @@ if RANK > 0:
 
     if RANK == 1:
         print("while exited")
-
+#"""
 # RANK 0 continues with the HMC
 else:
     rng_key = jax.random.PRNGKey(42)
@@ -419,5 +437,3 @@ else:
     cont = -1*np.ones_like(theta)
     COMM.Bcast(cont, root=0)
     print("opt done", flush=True)
-
-"""
