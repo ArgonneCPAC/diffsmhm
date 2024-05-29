@@ -49,8 +49,8 @@ def sigma_serial_cpu(
         The gradients of the surface density.
     """
 
-    # ensure the smallest bin is not zero
-    assert rpbins[0] > 0
+    # ensure the smallest bin starts at zero
+    assert rpbins[0] == 0
 
     # set up sizes
     n_grads = wh_jac.shape[0]
