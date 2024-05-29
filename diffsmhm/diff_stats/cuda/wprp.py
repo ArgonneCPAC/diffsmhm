@@ -446,14 +446,15 @@ def wprp_mpi_kernel_cuda(
     # check if cupy is available
     # this is here bc github CI doesn't work with cupy currently
     try:
-        arr = cp.array([1])
+        _ = cp.array([1])
         can_cupy = True
+        xp = cp
     except RuntimeError:
-        cp = np
         can_cupy = False
+        xp = np
 
-    assert not cp.allclose(rpbins_squared[0], 0)
-    _rpbins_squared = cp.concatenate([cp.array([0]), cp.array(rpbins_squared)], axis=0)
+    assert not xp.allclose(rpbins_squared[0], 0)
+    _rpbins_squared = xp.concatenate([xp.array([0]), xp.array(rpbins_squared)], axis=0)
 
     n_grads = w1_jac.shape[0]
     n_rp = _rpbins_squared.shape[0] - 1
@@ -478,21 +479,21 @@ def wprp_mpi_kernel_cuda(
         start_idx = displ
         end_idx = displ + count
 
-        # copy data to relevant device
+        # copy data to relevant device if gpu(s) available
         if can_cupy:
             cp.cuda.Device(d).use()
-        x1_d = cp.copy(x1)
-        y1_d = cp.copy(y1)
-        z1_d = cp.copy(z1)
+        x1_d = xp.copy(x1)
+        y1_d = xp.copy(y1)
+        z1_d = xp.copy(z1)
 
-        w1_d = cp.copy(w1)
-        w1_jac_d = cp.copy(w1_jac)
+        w1_d = xp.copy(w1)
+        w1_jac_d = xp.copy(w1_jac)
 
-        _rpbins_squared_d = cp.copy(_rpbins_squared)
-        inside_subvol_d = cp.copy(inside_subvol)
+        _rpbins_squared_d = xp.copy(_rpbins_squared)
+        inside_subvol_d = xp.copy(inside_subvol)
 
-        result_d = cp.zeros(n_rp * n_pi, dtype=np.float64)
-        result_grad_d = cp.zeros(n_grads * n_rp * n_pi, dtype=np.float64)
+        result_d = xp.zeros(n_rp * n_pi, dtype=np.float64)
+        result_grad_d = xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
 
         # launch kernel
         _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
@@ -507,28 +508,29 @@ def wprp_mpi_kernel_cuda(
         result_grad_all.append(result_grad_d)
 
     # now add the distributed calculation
-    cp.cuda.Device(n_devices-1).use()
-    res = cp.copy(result_all[-1])
-    res_grad = cp.copy(result_grad_all[-1])
+    if can_cupy:
+        cp.cuda.Device(n_devices-1).use()
+    res = xp.copy(result_all[-1])
+    res_grad = xp.copy(result_grad_all[-1])
     for d in range(n_devices-1):
         # let's be explicit moving data to one device
-        rd = cp.copy(result_all[d])
-        rd_grad = cp.copy(result_grad_all[d])
+        rd = xp.copy(result_all[d])
+        rd_grad = xp.copy(result_grad_all[d])
 
         res += rd
         res_grad += rd_grad
 
-    res = cp.reshape(res, (n_rp, n_pi))
-    res_grad = cp.reshape(res_grad, (n_grads, n_rp, n_pi))
+    res = xp.reshape(res, (n_rp, n_pi))
+    res_grad = xp.reshape(res_grad, (n_grads, n_rp, n_pi))
 
     wgt_mask = w1_d > 0
     inside_wgt_mask = inside_subvol_d & wgt_mask
-    sums = cp.zeros(2 + 2*n_grads, dtype=np.float64)
-    sums[0] = cp.sum(w1_d[inside_wgt_mask])
-    sums[1] = cp.sum(w1_d[inside_wgt_mask]**2)
+    sums = xp.zeros(2 + 2*n_grads, dtype=xp.float64)
+    sums[0] = xp.sum(w1_d[inside_wgt_mask])
+    sums[1] = xp.sum(w1_d[inside_wgt_mask]**2)
     for g in range(n_grads):
-        sums[2+g] = cp.sum(w1_d[inside_wgt_mask] * w1_jac_d[g, inside_wgt_mask])
-        sums[2+n_grads+g] = cp.sum(w1_jac_d[g, inside_wgt_mask])
+        sums[2+g] = xp.sum(w1_d[inside_wgt_mask] * w1_jac_d[g, inside_wgt_mask])
+        sums[2+n_grads+g] = xp.sum(w1_jac_d[g, inside_wgt_mask])
 
     # convert to differential
     n_rp = rpbins_squared.shape[0] - 1
@@ -558,4 +560,4 @@ def wprp_mpi_kernel_cuda(
             w2_tot=np.atleast_1d(sums_np[1]),
             ww_jac_tot=sums_np[2:2+n_grads],
             w_jac_tot=sums_np[2+n_grads:2+2*n_grads],
-
+        )
