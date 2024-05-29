@@ -22,6 +22,8 @@ from .conftest import SKIP_CUDA_TESTS
 )
 def test_wprp_serial_cuda_smoke():
     data = gen_mstar_data(seed=42)
+    bins = np.logspace(0.1, 15, 10)
+    bins = np.concatenate(np.array([0.0]), bins)
 
     nrp = data["rp_bins"].shape[0] - 1
     wprp, wprp_grad = wprp_serial_cuda(
@@ -30,7 +32,7 @@ def test_wprp_serial_cuda_smoke():
         z1=data["z"],
         w1=data["w"],
         w1_jac=data["w_jac"],
-        rpbins_squared=data["rp_bins"]**2,
+        rpbins_squared=bins**2,
         zmax=data["zmax"],
         boxsize=data["boxsize"],
     )
@@ -50,6 +52,8 @@ def test_wprp_serial_cuda_smoke():
 )
 def test_wprp_serial_cuda():
     data = gen_mstar_data(seed=42)
+    bins = np.logspace(0.1, 15, 10)
+    bins = np.concatenate(np.array([0.0]), bins)
 
     wprp_cuda, wprp_grad_cuda = wprp_serial_cuda(
         x1=data["x"],
@@ -57,7 +61,7 @@ def test_wprp_serial_cuda():
         z1=data["z"],
         w1=data["w"],
         w1_jac=data["w_jac"],
-        rpbins_squared=data["rp_bins"]**2,
+        rpbins_squared=bins**2,
         zmax=data["zmax"],
         boxsize=data["boxsize"],
     )
@@ -68,7 +72,7 @@ def test_wprp_serial_cuda():
         z1=data["z"],
         w1=data["w"],
         w1_jac=data["w_jac"],
-        rpbins_squared=data["rp_bins"]**2,
+        rpbins_squared=bins**2,
         zmax=data["zmax"],
         boxsize=data["boxsize"],
     )
