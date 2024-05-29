@@ -556,8 +556,8 @@ def wprp_mpi_kernel_cuda(
         return WprpMPIData(
             dd=dd,
             dd_jac=dd_grad,
-            w_tot=np.atleast_1d(sums_np[0]),
-            w2_tot=np.atleast_1d(sums_np[1]),
+            w_tot=np.atleast_1d(sums[0]),
+            w2_tot=np.atleast_1d(sums[1]),
             ww_jac_tot=sums_np[2:2+n_grads],
             w_jac_tot=sums_np[2+n_grads:2+2*n_grads],
         )
