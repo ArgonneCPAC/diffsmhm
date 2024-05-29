@@ -106,15 +106,13 @@ def sigma_mpi_comp_and_reduce(
         rpbins = np.array(rpbins)
         sum_weights_rank = np.array([np.sum(wh[inside_subvol])], dtype=np.float64)
     except TypeError:
-        rpbins= np.array(rpbins.get())
+        rpbins = np.array(rpbins.get())
         sum_weights_rank = np.array([cp.sum(wh[inside_subvol]).get()], dtype=np.float64)
-        qp = np
 
     # do radial normalization
     sigma_red /= np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
 
     # get weights total
-    #sum_weights_rank = np.array([qp.sum(wh[inside_subvol])], dtype=np.float64)
     sum_weights_all = np.ones(1, dtype=np.float64)
 
     COMM.Reduce(sum_weights_rank, sum_weights_all, op=MPI.SUM, root=0)
