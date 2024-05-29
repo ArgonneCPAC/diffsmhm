@@ -168,14 +168,15 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     rbins_squared = cp.logspace(-1, cp.log10(rpmax), nbins + 1) ** 2
 
     try:
-        arr = cp.array([1])
-    except:
-        cp = np
+        _ = cp.array([1])
+        xp = cp
+    except RuntimeError:
+        xp = np
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
     else:
-        npts = 100000# 5000000
+        npts = 100000  # 5000000
     halo_catalog = _gen_data(
         seed=seed,
         boxsize=lbox,
@@ -193,12 +194,12 @@ def test_wprp_mpi_comp_and_reduce_cuda():
 
     _dw1 = jnp.stack([halo_catalog_jax["dw1_%d" % g] for g in range(3)], axis=0)
     wprp, wprp_grad = wprp_mpi_comp_and_reduce(
-        x1=cp.asarray(halo_catalog_jax["x"]).astype(cp.float64),
-        y1=cp.asarray(halo_catalog_jax["y"]).astype(cp.float64),
-        z1=cp.asarray(halo_catalog_jax["z"]).astype(cp.float64),
-        w1=cp.asarray(halo_catalog_jax["w1"]).astype(cp.float64),
-        w1_jac=cp.asarray(_dw1).astype(cp.float64),
-        inside_subvol=cp.asarray(halo_catalog_jax["_inside_subvol"]),
+        x1=xp.asarray(halo_catalog_jax["x"]).astype(xp.float64),
+        y1=xp.asarray(halo_catalog_jax["y"]).astype(xp.float64),
+        z1=xp.asarray(halo_catalog_jax["z"]).astype(xp.float64),
+        w1=xp.asarray(halo_catalog_jax["w1"]).astype(xp.float64),
+        w1_jac=xp.asarray(_dw1).astype(xp.float64),
+        inside_subvol=xp.asarray(halo_catalog_jax["_inside_subvol"]),
         rpbins_squared=rbins_squared,
         zmax=zmax,
         boxsize=lbox,
