@@ -21,7 +21,7 @@ def gen_mstar_data(
     rp_bins = np.logspace(-1, np.log10(rpmax), nbins + 1, dtype=np.float64)
 
     if rp_bins[0] > 0.0:
-        np.concatenate(np.array([0.0]), rp_bins)
+        rp_bins = np.concatenate(np.array([0.0]), rp_bins)
 
     return dict(
         log10mstar=log10mstar,
