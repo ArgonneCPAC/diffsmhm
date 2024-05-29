@@ -453,8 +453,7 @@ def wprp_mpi_kernel_cuda(
         can_cupy = False
         xp = np
 
-    assert not xp.allclose(rpbins_squared[0], 0)
-    _rpbins_squared = xp.concatenate([xp.array([0]), xp.array(rpbins_squared)], axis=0)
+    assert xp.allclose(rpbins_squared[0], 0)
 
     n_grads = w1_jac.shape[0]
     n_rp = _rpbins_squared.shape[0] - 1
