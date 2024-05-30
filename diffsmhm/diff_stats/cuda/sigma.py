@@ -294,11 +294,7 @@ def sigma_serial_cuda(
     """
 
     # check if cupy is available
-    try:
-        _ = cp.array([1])
-        qp = cp
-    except RuntimeError:
-        qp = np
+    qp = cp.get_array_module(xp)
 
     # ensure smallest bin is zero
     assert qp.allclose(rpbins[0], 0.0)
@@ -400,13 +396,8 @@ def sigma_mpi_kernel_cuda(
     """
     # check if cupy is available
     # bc github CI doesn't work with cupy currently
-    try:
-        _ = cp.array([1])
-        can_cupy = True
-        qp = cp
-    except RuntimeError:
-        can_cupy = False
-        qp = np
+    qp = cp.get_array_module(xp)
+    can_cupy = qp == cp
 
     # check that first bin starts at zero
     assert qp.allclose(rpbins[0], 0)
