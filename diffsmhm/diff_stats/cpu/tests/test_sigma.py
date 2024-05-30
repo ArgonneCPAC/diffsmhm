@@ -15,7 +15,7 @@ def test_sigma_serial_cpu_smoke():
     rng = np.random.RandomState(seed=42)
 
     # generate halo and particle locations
-    boxsize = 10.0
+    boxsize = 100.0
     n_halos = 10
     zmax = 4.0
 
@@ -35,7 +35,7 @@ def test_sigma_serial_cpu_smoke():
 
     # radial bins
     n_bins = 5
-    bins = np.linspace(0.0, 0.4, n_bins+1)
+    bins = np.linspace(0.0, 10.0, n_bins+1)
 
     # do calculation
     sigma, sigma_grad = sigma_serial_cpu(
