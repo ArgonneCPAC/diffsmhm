@@ -186,17 +186,31 @@ def wprp_serial_cuda(
     wprp_grad : array-like, shape (n_grads, n_rpbins)
         The gradients of the projected correlation function.
     """
-    assert not np.allclose(rpbins_squared[0], 0.0)
-    _rpbins_squared = np.concatenate([[0], rpbins_squared], axis=0)
+    # check if cupy is available
+    try:
+        _ = cp.array([1])
+        can_cupy = True
+        xp = cp
+    except RuntimeError:
+        can_cupy = False
+        xp = np
+
+    assert not xp.allclose(rpbins_squared[0], 0)
+    _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
 
     n_grads = w1_jac.shape[0]
     n_rp = _rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
-    result = cuda.to_device(np.zeros(n_rp * n_pi, dtype=np.float64))
-    result_grad = cuda.to_device(
-        np.zeros(n_grads * n_rp * n_pi, dtype=np.float64)
-    )
+    if can_cupy:
+        result = xp.zeros(n_rp * n_pi, dtype=np.float64)
+        result_grad = xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
+    else:
+        result = cuda.to_device(xp.zeros(n_rp * n_pi, dtype=xp.float64))
+        result_grad = cuda.to_device(
+            xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
+        )
+
     boxsize_2 = boxsize / 2.0
 
     _count_weighted_pairs_rppi_with_derivs_periodic_cuda[blocks, threads](
@@ -209,10 +223,15 @@ def wprp_serial_cuda(
         boxsize_2,
     )
 
-    res = result.copy_to_host().reshape((n_rp, n_pi))
-    res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
+    if can_cupy:
+        res = result.reshape((n_rp, n_pi))
+        res_grad = result_grad.reshape((n_grads, n_rp, n_pi))
+    else:
+        res = result.copy_to_host().reshape((n_rp, n_pi))
+        res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
 
     # TODO - do this with cupy if it is available?
+    """
     sums = cuda.to_device(np.zeros(2 + 2*n_grads, dtype=np.float64))
     _sum_nomask[blocks, threads](w1, sums, 0)
     _sum2_nomask[blocks, threads](w1, sums, 1)
@@ -224,6 +243,21 @@ def wprp_serial_cuda(
             w1, w1_jac, sums, g, 2+n_grads+g
         )
     sums = sums.copy_to_host()
+    """
+    wgt_mask = w1 > 0
+    sums = xp.zeros(2 + 2*n_grads, dtype=xp.float64)
+    sums[0] = xp.sum(w1[wgt_mask])
+    sums[1] = xp.sum(w1[wgt_mask]**2)
+    for g in range(n_grads):
+        sums[2+g] = xp.sum(w1[wgt_mask] * w1_jac[g, wgt_mask])
+        sums[2+n_grads+g] = xp.sum(w1_jac[g, wgt_mask])
+
+    # let's bring everything back to cpu/numpy
+    if can_cupy:
+        res = np.array(res.get())
+        res_grad = np.array(res_grad.get())
+        rpbins_squared = np.array(rpbins_squared.get())
+        sums = np.array(sums.get())
 
     # convert to differential
     n_rp = rpbins_squared.shape[0] - 1
@@ -399,7 +433,6 @@ def _count_weighted_pairs_rppi_with_derivs_cuda(
                                     break
 
 
-# NOTE: expects cupy arrays
 def wprp_mpi_kernel_cuda(
     *,
     x1,
@@ -453,10 +486,11 @@ def wprp_mpi_kernel_cuda(
         can_cupy = False
         xp = np
 
-    assert xp.allclose(rpbins_squared[0], 0)
+    assert not xp.allclose(rpbins_squared[0], 0)
+    _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
 
     n_grads = w1_jac.shape[0]
-    n_rp = rpbins_squared.shape[0] - 1
+    n_rp = _rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
     # use multiple GPUs if available
@@ -488,7 +522,7 @@ def wprp_mpi_kernel_cuda(
         w1_d = xp.copy(w1)
         w1_jac_d = xp.copy(w1_jac)
 
-        rpbins_squared_d = xp.copy(rpbins_squared)
+        _rpbins_squared_d = xp.copy(_rpbins_squared)
         inside_subvol_d = xp.copy(inside_subvol)
 
         result_d = xp.zeros(n_rp * n_pi, dtype=np.float64)
@@ -497,7 +531,7 @@ def wprp_mpi_kernel_cuda(
         # launch kernel
         _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
             x1_d, y1_d, z1_d, w1_d, w1_jac_d, inside_subvol_d,
-            rpbins_squared_d, n_pi,
+            _rpbins_squared_d, n_pi,
             result_d, result_grad_d,
             start_idx, end_idx
         )
