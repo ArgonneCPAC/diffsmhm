@@ -319,7 +319,7 @@ def sigma_serial_cuda(
     # set up device arrays
     sigma_device = qp.zeros(n_rpbins, dtype=qp.float64)
     sigma_grad_1st_device = qp.zeros((n_grads, n_rpbins),
-                                           dtype=qp.float64)
+                                     dtype=qp.float64)
 
     # do the actual counting on GPU
     _count_particles[blocks, threads](
