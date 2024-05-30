@@ -61,9 +61,6 @@ def sigma_mpi_comp_and_reduce(
         The gradients of the 2D surface density function.
     """
 
-    # assert smallest bin starts at zero
-    assert rpbins[0] == 0.0
-
     # sizing parameters
     n_grads = wh_jac.shape[0]
     n_bins = len(rpbins) - 1
