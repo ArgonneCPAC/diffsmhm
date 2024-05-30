@@ -296,10 +296,8 @@ def sigma_serial_cuda(
     # check if cupy is available
     try:
         _ = cp.array([1])
-        can_cupy = True
         qp = cp
     except RuntimeError:
-        can_cupy = False
         qp = np
 
     # ensure smallest bin is zero
@@ -325,13 +323,13 @@ def sigma_serial_cuda(
 
     # do the actual counting on GPU
     _count_particles[blocks, threads](
-                                        xh, yh, zh, wh, wh_jac, n_grads,
-                                        xp_p, yp_p, zp_p,
-                                        rpbins,
-                                        zmax,
-                                        sigma_device,
-                                        sigma_grad_1st_device
-                                     )
+                                      xh, yh, zh, wh, wh_jac, n_grads,
+                                      xp_p, yp_p, zp_p,
+                                      rpbins,
+                                      zmax,
+                                      sigma_device,
+                                      sigma_grad_1st_device
+    )
 
     sigma_exp = qp.array(sigma_device)
     sigma_grad_1st = sigma_grad_1st_device.reshape((n_grads, n_rpbins))
