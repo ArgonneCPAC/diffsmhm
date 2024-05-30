@@ -226,19 +226,6 @@ def wprp_serial_cuda(
         res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
 
     # TODO - do this with cupy if it is available?
-    """
-    sums = cuda.to_device(np.zeros(2 + 2*n_grads, dtype=np.float64))
-    _sum_nomask[blocks, threads](w1, sums, 0)
-    _sum2_nomask[blocks, threads](w1, sums, 1)
-    for g in range(n_grads):
-        _sum_prod_at_ind_nomask[blocks, threads](
-            w1, w1_jac, sums, g, 2+g
-        )
-        _sum_at_ind_nomask[blocks, threads](
-            w1, w1_jac, sums, g, 2+n_grads+g
-        )
-    sums = sums.copy_to_host()
-    """
     wgt_mask = w1 > 0
     sums = xp.zeros(2 + 2*n_grads, dtype=xp.float64)
     sums[0] = xp.sum(w1[wgt_mask])
