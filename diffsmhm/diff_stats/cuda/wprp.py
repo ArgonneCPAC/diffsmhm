@@ -188,7 +188,7 @@ def wprp_serial_cuda(
     """
     # check if cupy is available
     xp = cp.get_array_module(x1)
-    can_cupy = xp == cp
+    can_cupy = xp is cp
 
     assert not xp.allclose(rpbins_squared[0], 0)
     _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
@@ -225,7 +225,6 @@ def wprp_serial_cuda(
         res = result.copy_to_host().reshape((n_rp, n_pi))
         res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
 
-    # TODO - do this with cupy if it is available?
     wgt_mask = w1 > 0
     sums = xp.zeros(2 + 2*n_grads, dtype=xp.float64)
     sums[0] = xp.sum(w1[wgt_mask])
@@ -461,7 +460,7 @@ def wprp_mpi_kernel_cuda(
     # check if cupy is available
     # this is here bc github CI doesn't work with cupy currently
     xp = cp.get_array_module(x1)
-    can_cupy = xp == cp
+    can_cupy = xp is cp
 
     assert not xp.allclose(rpbins_squared[0], 0)
     _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)

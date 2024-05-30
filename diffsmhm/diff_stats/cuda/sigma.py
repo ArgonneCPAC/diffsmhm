@@ -397,7 +397,7 @@ def sigma_mpi_kernel_cuda(
     # check if cupy is available
     # bc github CI doesn't work with cupy currently
     qp = cp.get_array_module(xp)
-    can_cupy = qp == cp
+    can_cupy = qp is cp
 
     # check that first bin starts at zero
     assert qp.allclose(rpbins[0], 0)
