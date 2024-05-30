@@ -187,13 +187,8 @@ def wprp_serial_cuda(
         The gradients of the projected correlation function.
     """
     # check if cupy is available
-    try:
-        _ = cp.array([1])
-        can_cupy = True
-        xp = cp
-    except RuntimeError:
-        can_cupy = False
-        xp = np
+    xp = cp.get_array_module(x1)
+    can_cupy = xp == cp
 
     assert not xp.allclose(rpbins_squared[0], 0)
     _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
@@ -478,13 +473,8 @@ def wprp_mpi_kernel_cuda(
     """
     # check if cupy is available
     # this is here bc github CI doesn't work with cupy currently
-    try:
-        _ = cp.array([1])
-        can_cupy = True
-        xp = cp
-    except RuntimeError:
-        can_cupy = False
-        xp = np
+    xp = cp.get_array_module(x1)
+    can_cupy = xp == cp
 
     assert not xp.allclose(rpbins_squared[0], 0)
     _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
