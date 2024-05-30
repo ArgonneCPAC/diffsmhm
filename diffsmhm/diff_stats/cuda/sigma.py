@@ -293,27 +293,35 @@ def sigma_serial_cuda(
         The surface density gradients at each radial bin.
     """
 
-    # ensure smallest bin is not zero
-    assert rpbins[0] == 0.0
+    # check if cupy is available
+    try:
+        _ = cp.array([1])
+        can_cupy = True
+        qp = cp
+    except RuntimeError:
+        can_cupy = False
+        qp = np
+
+    # ensure smallest bin is zero
+    assert qp.allclose(rpbins[0], 0.0)
 
     # set up sizes
     n_grads = wh_jac.shape[0]
 
     n_rpbins = len(rpbins) - 1
-    rads = np.pi * (np.square(rpbins[1:], dtype=np.float64) -
-                    np.square(rpbins[:-1], dtype=np.float64))
+    rads = qp.pi * (qp.square(rpbins[1:], dtype=qp.float64) -
+                    qp.square(rpbins[:-1], dtype=qp.float64))
 
     rpmax = rpbins[-1]
     periodic_buffer = max(rpmax, zmax)
-    print("PB:", periodic_buffer, flush=True)
 
     # handle periodicity
     xp_p, yp_p, zp_p = _copy_periodic_points_3D(xp, yp, zp, boxsize, periodic_buffer)
 
     # set up device arrays
-    sigma_device = cuda.to_device(np.zeros(n_rpbins, dtype=np.float64))
-    sigma_grad_1st_device = cuda.to_device(np.zeros((n_grads, n_rpbins),
-                                           dtype=np.float64))
+    sigma_device = qp.zeros(n_rpbins, dtype=qp.float64)
+    sigma_grad_1st_device = qp.zeros((n_grads, n_rpbins),
+                                           dtype=qp.float64)
 
     # do the actual counting on GPU
     _count_particles[blocks, threads](
@@ -325,21 +333,21 @@ def sigma_serial_cuda(
                                         sigma_grad_1st_device
                                      )
 
-    sigma_exp = sigma_device.copy_to_host()
-    sigma_grad_1st = sigma_grad_1st_device.copy_to_host().reshape((n_grads, n_rpbins))
+    sigma_exp = qp.array(sigma_device)
+    sigma_grad_1st = sigma_grad_1st_device.reshape((n_grads, n_rpbins))
 
     # normalize by surface area
     sigma_exp /= rads
     sigma_grad_1st /= rads
 
     # normalize sigma by weights sum
-    weights_sum = np.sum(wh, dtype=np.float64)
+    weights_sum = qp.sum(wh, dtype=qp.float64)
     sigma_exp /= weights_sum
 
     # second term of gradient
-    grad_sum = np.sum(wh_jac, axis=1, dtype=np.float64).reshape(n_grads, 1)
+    grad_sum = qp.sum(wh_jac, axis=1, dtype=qp.float64).reshape(n_grads, 1)
     sigma_row = sigma_exp.reshape(1, n_rpbins)
-    sigma_grad_2nd = np.matmul(grad_sum, sigma_row, dtype=np.float64)
+    sigma_grad_2nd = qp.matmul(grad_sum, sigma_row, dtype=qp.float64)
 
     # subtract gradient terms
     sigma_grad = sigma_grad_1st - sigma_grad_2nd
@@ -401,6 +409,9 @@ def sigma_mpi_kernel_cuda(
     except RuntimeError:
         can_cupy = False
         qp = np
+
+    # check that first bin starts at zero
+    assert qp.allclose(rpbins[0], 0)
 
     # set up sizes
     n_grads = wh_jac.shape[0]
