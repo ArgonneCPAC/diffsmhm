@@ -49,8 +49,8 @@ def sigma_serial_cpu(
         The gradients of the surface density.
     """
 
-    # ensure the smallest bin starts at zero
-    assert rpbins[0] == 0
+    # ensure the smallest bin is zero
+    assert np.allclose(rpbins[0], 0)
 
     # set up sizes
     n_grads = wh_jac.shape[0]
@@ -153,6 +153,8 @@ def sigma_mpi_kernel_cpu(
     sigma_grad_1st : array-like, shape(n_grads, n_rpbins)
         The first term of the surface density gradients at each radial bin.
     """
+
+    assert np.allclose(rpbins[0], 0)
 
     # set up sizes
     n_parts = len(xp)
