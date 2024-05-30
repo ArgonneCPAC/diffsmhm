@@ -178,7 +178,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
     else:
-        npts = 100000 #5000000
+        npts = 5000000
     halo_catalog = _gen_data(
         seed=seed,
         boxsize=lbox,
