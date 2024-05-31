@@ -220,11 +220,9 @@ def _count_particles(
     result, result_grad
 ):
 
-    # start position depends on thread position and designated chunk
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
 
-    # end position for designated chunk
     n_halos = len(xh)
     n_particles = len(xp)
     n_bins = len(rpbins) - 1
@@ -410,7 +408,8 @@ def sigma_mpi_kernel_cuda(
     if can_cupy:
         n_devices = len(cuda.gpus)
 
-    # split the data into chunks for each device
+    # split the particle data into chunks for each device
+    # this made more of a performance difference than splitting by halos
     avg, rem = divmod(len(xp), n_devices)
     device_count = [avg + 1 if p < rem else avg for p in range(n_devices)]
     device_displ = [sum(device_count[:p]) for p in range(n_devices)]
