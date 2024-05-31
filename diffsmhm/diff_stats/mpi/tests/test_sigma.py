@@ -34,7 +34,7 @@ from diffsmhm.diff_stats.mpi.sigma import (
 from diffsmhm.testing import gen_mstar_data
 from diffsmhm.loader import wrap_to_local_volume_inplace
 
-from diffsmhm.diff_stats.cupy_utils import get_array_backend()
+from diffsmhm.diff_stats.cupy_utils import get_array_backend
 
 
 def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
@@ -233,7 +233,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
     )
 
     if RANK == 0:
-        if can_cupy:
+        if xp is cp:
             rpbins_cpu = np.array(rpbins.get())
         else:
             rpbins_cpu = np.copy(rpbins)
