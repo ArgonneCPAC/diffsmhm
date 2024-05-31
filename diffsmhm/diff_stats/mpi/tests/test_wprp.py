@@ -1,7 +1,11 @@
 import os
 
+from collections import OrderedDict
+
 from numpy.testing import assert_allclose
 import numpy as np
+import cupy as cp
+import jax.numpy as jnp
 import pytest
 
 try:
@@ -32,9 +36,11 @@ from diffsmhm.diff_stats.cuda.tests.conftest import (
     SKIP_CUDA_TESTS
 )
 
+from diffsmhm.diff_stats.cupy_utils import get_array_backend
+
 
 def _gen_data(**kwargs):
-    halo_catalog = dict()
+    halo_catalog = OrderedDict()
     if RANK == 0:
         _halo_catalog = gen_mstar_data(**kwargs)
         halo_catalog["x"] = _halo_catalog["x"]
@@ -82,7 +88,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
     rpmax = 15
     seed = 42
     npts = 50000
-    rbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
     halo_catalog = _gen_data(
         seed=seed,
         boxsize=lbox,
@@ -101,7 +107,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
         w1=halo_catalog["w1"].astype(np.float64),
         w1_jac=_dw1.astype(np.float64),
         inside_subvol=halo_catalog["_inside_subvol"],
-        rpbins_squared=rbins_squared,
+        rpbins_squared=rpbins_squared,
         zmax=zmax,
         boxsize=lbox,
         kernel_func=wprp_mpi_kernel_cpu,
@@ -127,7 +133,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
             z1=orig_halo_catalog["z"].astype(np.float64),
             w1=orig_halo_catalog["w1"].astype(np.float64),
             w1_jac=dw1,
-            rpbins_squared=rbins_squared,
+            rpbins_squared=rpbins_squared,
             zmax=zmax,
             boxsize=lbox,
         )
@@ -156,12 +162,14 @@ def test_wprp_mpi_comp_and_reduce_cpu():
     reason="numba not in CUDA simulator mode or no CUDA-capable GPU is available",
 )
 def test_wprp_mpi_comp_and_reduce_cuda():
+    xp = get_array_backend()
+
     lbox = 120
-    zmax = 10
+    zmax = 12
     nbins = 10
     rpmax = 15
     seed = 42
-    rbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = xp.logspace(-1, xp.log10(rpmax), nbins + 1) ** 2
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
@@ -177,21 +185,31 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     )
     halo_catalog = _distribute_data(halo_catalog, lbox, rpmax)
 
-    _dw1 = np.stack([halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
+    # make jax version that will be on gpu is available
+    halo_catalog_jax = OrderedDict()
+    for k in halo_catalog.keys():
+        halo_catalog_jax[k] = jnp.copy(halo_catalog[k])
+
+    _dw1 = jnp.stack([halo_catalog_jax["dw1_%d" % g] for g in range(3)], axis=0)
     wprp, wprp_grad = wprp_mpi_comp_and_reduce(
-        x1=halo_catalog["x"].astype(np.float64),
-        y1=halo_catalog["y"].astype(np.float64),
-        z1=halo_catalog["z"].astype(np.float64),
-        w1=halo_catalog["w1"].astype(np.float64),
-        w1_jac=_dw1.astype(np.float64),
-        inside_subvol=halo_catalog["_inside_subvol"],
-        rpbins_squared=rbins_squared,
+        x1=xp.asarray(halo_catalog_jax["x"]).astype(xp.float64),
+        y1=xp.asarray(halo_catalog_jax["y"]).astype(xp.float64),
+        z1=xp.asarray(halo_catalog_jax["z"]).astype(xp.float64),
+        w1=xp.asarray(halo_catalog_jax["w1"]).astype(xp.float64),
+        w1_jac=xp.asarray(_dw1).astype(xp.float64),
+        inside_subvol=xp.asarray(halo_catalog_jax["_inside_subvol"]),
+        rpbins_squared=rpbins_squared,
         zmax=zmax,
         boxsize=lbox,
         kernel_func=wprp_mpi_kernel_cuda,
     )
 
     if RANK == 0:
+        if xp is cp:
+            rpbins_squared_cpu = np.array(rpbins_squared.get())
+        else:
+            rpbins_squared_cpu = np.copy(rpbins_squared)
+
         # compare to serial computation
         orig_halo_catalog = _gen_data(
             seed=seed,
@@ -211,7 +229,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
             z1=orig_halo_catalog["z"].astype(np.float64),
             w1=orig_halo_catalog["w1"].astype(np.float64),
             w1_jac=dw1,
-            rpbins_squared=rbins_squared,
+            rpbins_squared=rpbins_squared_cpu,
             zmax=zmax,
             boxsize=lbox,
         )

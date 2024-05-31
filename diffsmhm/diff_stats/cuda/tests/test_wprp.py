@@ -14,6 +14,8 @@ from diffsmhm.testing import gen_mstar_data
 
 from .conftest import SKIP_CUDA_TESTS
 
+from diffsmhm.diff_stats.cupy_utils import get_array_backend
+
 
 @pytest.mark.mpi_skip
 @pytest.mark.skipif(
@@ -21,16 +23,18 @@ from .conftest import SKIP_CUDA_TESTS
     reason="numba not in CUDA simulator mode or no CUDA-capable GPU is available",
 )
 def test_wprp_serial_cuda_smoke():
+    xp = get_array_backend()
+
     data = gen_mstar_data(seed=42)
 
     nrp = data["rp_bins"].shape[0] - 1
     wprp, wprp_grad = wprp_serial_cuda(
-        x1=data["x"],
-        y1=data["y"],
-        z1=data["z"],
-        w1=data["w"],
-        w1_jac=data["w_jac"],
-        rpbins_squared=data["rp_bins"]**2,
+        x1=xp.asarray(data["x"]),
+        y1=xp.asarray(data["y"]),
+        z1=xp.asarray(data["z"]),
+        w1=xp.asarray(data["w"]),
+        w1_jac=xp.asarray(data["w_jac"]),
+        rpbins_squared=xp.asarray(data["rp_bins"]**2),
         zmax=data["zmax"],
         boxsize=data["boxsize"],
     )
@@ -49,15 +53,17 @@ def test_wprp_serial_cuda_smoke():
     reason="numba not in CUDA simulator mode or no CUDA-capable GPU is available",
 )
 def test_wprp_serial_cuda():
+    xp = get_array_backend()
+
     data = gen_mstar_data(seed=42)
 
     wprp_cuda, wprp_grad_cuda = wprp_serial_cuda(
-        x1=data["x"],
-        y1=data["y"],
-        z1=data["z"],
-        w1=data["w"],
-        w1_jac=data["w_jac"],
-        rpbins_squared=data["rp_bins"]**2,
+        x1=xp.asarray(data["x"]),
+        y1=xp.asarray(data["y"]),
+        z1=xp.asarray(data["z"]),
+        w1=xp.asarray(data["w"]),
+        w1_jac=xp.asarray(data["w_jac"]),
+        rpbins_squared=xp.asarray(data["rp_bins"]**2),
         zmax=data["zmax"],
         boxsize=data["boxsize"],
     )

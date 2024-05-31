@@ -1,21 +1,10 @@
 import numpy as np
+import cupy as cp
+
 from numba import cuda
 
 from diffsmhm.diff_stats.mpi.types import WprpMPIData
 from diffsmhm.diff_stats.cpu.wprp_utils import compute_rr_rrgrad_eff
-
-
-@cuda.jit(fastmath=False)
-def _sum_nomask(w, res, ind):
-    start = cuda.grid(1)
-    stride = cuda.gridsize(1)
-    n = w.shape[0]
-    tot = 0.0
-    for i in range(start, n, stride):
-        if w[i] > 0:
-            tot += w[i]
-
-    cuda.atomic.add(res, ind, tot)
 
 
 @cuda.jit(fastmath=False)
@@ -45,35 +34,9 @@ def _sum_prod_nomask(w1, w2, res, ind):
 
 
 @cuda.jit(fastmath=False)
-def _sum_prod_at_ind_nomask(w1, w2, res, atind, ind):
-    start = cuda.grid(1)
-    stride = cuda.gridsize(1)
-    n = w1.shape[0]
-    tot = 0.0
-    for i in range(start, n, stride):
-        if w1[i] > 0:
-            tot += w1[i]*w2[atind, i]
-
-    cuda.atomic.add(res, ind, tot)
-
-
-@cuda.jit(fastmath=False)
-def _sum_at_ind_nomask(w1, w2, res, atind, ind):
-    start = cuda.grid(1)
-    stride = cuda.gridsize(1)
-    n = w1.shape[0]
-    tot = 0.0
-    for i in range(start, n, stride):
-        if w1[i] > 0:
-            tot += w2[atind, i]
-
-    cuda.atomic.add(res, ind, tot)
-
-
-@cuda.jit(fastmath=False)
 def _count_weighted_pairs_rppi_with_derivs_periodic_cuda(
     x1, y1, z1, w1, dw1, rpbins_squared, n_pi, result, result_grad,
-    boxsize, boxsize_2,
+    boxsize, boxsize_2
 ):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -184,17 +147,26 @@ def wprp_serial_cuda(
     wprp_grad : array-like, shape (n_grads, n_rpbins)
         The gradients of the projected correlation function.
     """
-    assert not np.allclose(rpbins_squared[0], 0)
-    _rpbins_squared = np.concatenate([[0], rpbins_squared], axis=0)
+    # check if cupy is available
+    xp = cp.get_array_module(x1)
+    can_cupy = xp is cp
+
+    assert not xp.allclose(rpbins_squared[0], 0)
+    _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
 
     n_grads = w1_jac.shape[0]
     n_rp = _rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
-    result = cuda.to_device(np.zeros(n_rp * n_pi, dtype=np.float64))
-    result_grad = cuda.to_device(
-        np.zeros(n_grads * n_rp * n_pi, dtype=np.float64)
-    )
+    if can_cupy:
+        result = xp.zeros(n_rp * n_pi, dtype=np.float64)
+        result_grad = xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
+    else:
+        result = cuda.to_device(xp.zeros(n_rp * n_pi, dtype=xp.float64))
+        result_grad = cuda.to_device(
+            xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
+        )
+
     boxsize_2 = boxsize / 2.0
 
     _count_weighted_pairs_rppi_with_derivs_periodic_cuda[blocks, threads](
@@ -204,24 +176,30 @@ def wprp_serial_cuda(
         result,
         result_grad,
         boxsize,
-        boxsize_2
+        boxsize_2,
     )
 
-    res = result.copy_to_host().reshape((n_rp, n_pi))
-    res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
+    if can_cupy:
+        res = result.reshape((n_rp, n_pi))
+        res_grad = result_grad.reshape((n_grads, n_rp, n_pi))
+    else:
+        res = result.copy_to_host().reshape((n_rp, n_pi))
+        res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
 
-    # TODO - do this with cupy if it is available?
-    sums = cuda.to_device(np.zeros(2 + 2*n_grads, dtype=np.float64))
-    _sum_nomask[blocks, threads](w1, sums, 0)
-    _sum2_nomask[blocks, threads](w1, sums, 1)
+    wgt_mask = w1 > 0
+    sums = xp.zeros(2 + 2*n_grads, dtype=xp.float64)
+    sums[0] = xp.sum(w1[wgt_mask])
+    sums[1] = xp.sum(w1[wgt_mask]**2)
     for g in range(n_grads):
-        _sum_prod_at_ind_nomask[blocks, threads](
-            w1, w1_jac, sums, g, 2+g
-        )
-        _sum_at_ind_nomask[blocks, threads](
-            w1, w1_jac, sums, g, 2+n_grads+g
-        )
-    sums = sums.copy_to_host()
+        sums[2+g] = xp.sum(w1[wgt_mask] * w1_jac[g, wgt_mask])
+        sums[2+n_grads+g] = xp.sum(w1_jac[g, wgt_mask])
+
+    # let's bring everything back to cpu/numpy
+    if can_cupy:
+        res = np.array(res.get())
+        res_grad = np.array(res_grad.get())
+        rpbins_squared = np.array(rpbins_squared.get())
+        sums = np.array(sums.get())
 
     # convert to differential
     n_rp = rpbins_squared.shape[0] - 1
@@ -322,15 +300,23 @@ def _sum_at_ind_mask(w1, w2, mask, res, atind, ind):
     cuda.atomic.add(res, ind, tot)
 
 
+# outer loop can be limited in scope with start_idx end_idx which allows
+# for the wprp computation to be split
 @cuda.jit(fastmath=False)
 def _count_weighted_pairs_rppi_with_derivs_cuda(
-    x1, y1, z1, w1, dw1, inside_subvol, rpbins_squared, n_pi, result,
-    result_grad,
+    x1, y1, z1, w1, dw1, inside_subvol, rpbins_squared, n_pi,
+    result, result_grad,
+    start_idx, end_idx
 ):
-    start = cuda.grid(1)
+    # start position depends on thread position and designated chunk
+    start = start_idx + cuda.grid(1)
     stride = cuda.gridsize(1)
 
-    n1 = x1.shape[0]
+    # end position for designated chunk (outer loop)
+    n1 = end_idx
+    # end is all objects for inner loop
+    n2 = x1.shape[0]
+
     n_rp = rpbins_squared.shape[0]
 
     # this shape is (ngrads, nbins) to attempt to keep things local in memory
@@ -346,7 +332,7 @@ def _count_weighted_pairs_rppi_with_derivs_cuda(
             pz = z1[i]
             pw = w1[i]
 
-            for j in range(n1):
+            for j in range(n2):
                 if w1[j] > 0:
                     qx = x1[j]
                     qy = y1[j]
@@ -432,37 +418,89 @@ def wprp_mpi_kernel_cuda(
     wprp_mpi_data : named tuple of type WprpMPIData
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
-    assert not np.allclose(rpbins_squared[0], 0)
-    _rpbins_squared = np.concatenate([[0], rpbins_squared], axis=0)
+    # check if cupy is available
+    # this is here bc github CI doesn't work with cupy currently
+    xp = cp.get_array_module(x1)
+    can_cupy = xp is cp
+
+    assert not xp.allclose(rpbins_squared[0], 0)
+    _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
 
     n_grads = w1_jac.shape[0]
     n_rp = _rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
-    result = cuda.to_device(np.zeros(n_rp * n_pi, dtype=np.float64))
-    result_grad = cuda.to_device(
-        np.zeros(n_grads * n_rp * n_pi, dtype=np.float64)
-    )
-    _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
-        x1, y1, z1, w1, w1_jac, inside_subvol,
-        _rpbins_squared, n_pi,
-        result, result_grad,
-    )
-    res = result.copy_to_host().reshape((n_rp, n_pi))
-    res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
+    # use multiple GPUs if available
+    n_devices = 1
+    if can_cupy:
+        n_devices = len(cuda.gpus)
 
-    # TODO - do this with cupy if it is available?
-    sums = cuda.to_device(np.zeros(2 + 2*n_grads, dtype=np.float64))
-    _sum_mask[blocks, threads](w1, inside_subvol, sums, 0)
-    _sum2_mask[blocks, threads](w1, inside_subvol, sums, 1)
+    # split the data into chunks for each device
+    avg, rem = divmod(len(x1), n_devices)
+    device_count = [avg + 1 if p < rem else avg for p in range(n_devices)]
+    device_displ = [sum(device_count[:p]) for p in range(n_devices)]
+    # lists of results for combination later
+    result_all = []
+    result_grad_all = []
+    for d in range(n_devices):
+        # get this chunk range
+        count = device_count[d]
+        displ = device_displ[d]
+        start_idx = displ
+        end_idx = displ + count
+
+        # copy data to relevant device if gpu(s) available
+        if can_cupy:
+            cp.cuda.Device(d).use()
+        x1_d = xp.copy(x1)
+        y1_d = xp.copy(y1)
+        z1_d = xp.copy(z1)
+
+        w1_d = xp.copy(w1)
+        w1_jac_d = xp.copy(w1_jac)
+
+        _rpbins_squared_d = xp.copy(_rpbins_squared)
+        inside_subvol_d = xp.copy(inside_subvol)
+
+        result_d = xp.zeros(n_rp * n_pi, dtype=np.float64)
+        result_grad_d = xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
+
+        # launch kernel
+        _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
+            x1_d, y1_d, z1_d, w1_d, w1_jac_d, inside_subvol_d,
+            _rpbins_squared_d, n_pi,
+            result_d, result_grad_d,
+            start_idx, end_idx
+        )
+
+        # add chunked result to list
+        result_all.append(result_d)
+        result_grad_all.append(result_grad_d)
+
+    # now add the distributed calculation
+    if can_cupy:
+        cp.cuda.Device(n_devices-1).use()
+    res = xp.copy(result_all[-1])
+    res_grad = xp.copy(result_grad_all[-1])
+    for d in range(n_devices-1):
+        # let's be explicit moving data to one device
+        rd = xp.copy(result_all[d])
+        rd_grad = xp.copy(result_grad_all[d])
+
+        res += rd
+        res_grad += rd_grad
+
+    res = xp.reshape(res, (n_rp, n_pi))
+    res_grad = xp.reshape(res_grad, (n_grads, n_rp, n_pi))
+
+    wgt_mask = w1_d > 0
+    inside_wgt_mask = inside_subvol_d & wgt_mask
+    sums = xp.zeros(2 + 2*n_grads, dtype=xp.float64)
+    sums[0] = xp.sum(w1_d[inside_wgt_mask])
+    sums[1] = xp.sum(w1_d[inside_wgt_mask]**2)
     for g in range(n_grads):
-        _sum_prod_at_ind_mask[blocks, threads](
-            w1, w1_jac, inside_subvol, sums, g, 2+g
-        )
-        _sum_at_ind_mask[blocks, threads](
-            w1, w1_jac, inside_subvol, sums, g, 2+n_grads+g
-        )
-    sums = sums.copy_to_host()
+        sums[2+g] = xp.sum(w1_d[inside_wgt_mask] * w1_jac_d[g, inside_wgt_mask])
+        sums[2+n_grads+g] = xp.sum(w1_jac_d[g, inside_wgt_mask])
 
     # convert to differential
     n_rp = rpbins_squared.shape[0] - 1
@@ -473,11 +511,23 @@ def wprp_mpi_kernel_cuda(
     dd = res / 2
     dd_grad = res_grad / 2
 
-    return WprpMPIData(
-        dd=dd,
-        dd_jac=dd_grad,
-        w_tot=np.atleast_1d(sums[0]),
-        w2_tot=np.atleast_1d(sums[1]),
-        ww_jac_tot=sums[2:2+n_grads],
-        w_jac_tot=sums[2+n_grads:2+2*n_grads],
-    )
+    # return as cpu data
+    if can_cupy:
+        sums_np = cp.asnumpy(sums)
+        return WprpMPIData(
+            dd=cp.asnumpy(dd),
+            dd_jac=cp.asnumpy(dd_grad),
+            w_tot=np.atleast_1d(sums_np[0]),
+            w2_tot=np.atleast_1d(sums_np[1]),
+            ww_jac_tot=sums_np[2:2+n_grads],
+            w_jac_tot=sums_np[2+n_grads:2+2*n_grads],
+        )
+    else:
+        return WprpMPIData(
+            dd=dd,
+            dd_jac=dd_grad,
+            w_tot=np.atleast_1d(sums[0]),
+            w2_tot=np.atleast_1d(sums[1]),
+            ww_jac_tot=sums[2:2+n_grads],
+            w_jac_tot=sums[2+n_grads:2+2*n_grads],
+        )

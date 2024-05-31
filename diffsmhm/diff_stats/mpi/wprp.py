@@ -91,6 +91,12 @@ def wprp_mpi_comp_and_reduce(
     with time_step("final post-processing"):
         # now do norm by RR and compute proper grad
         if RANK == 0:
+            # if need be convert some things to numpy from cupy
+            try:
+                rpbins_squared = np.array(rpbins_squared)
+            except TypeError:
+                rpbins_squared = np.array(rpbins_squared.get())
+
             n_eff = w_tot**2 / w2_tot
 
             # this is the volume of the shell
