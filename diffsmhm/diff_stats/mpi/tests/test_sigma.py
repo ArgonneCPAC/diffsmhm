@@ -1,5 +1,9 @@
+from collections import OrderedDict
+
 from numpy.testing import assert_allclose
 import numpy as np
+import cupy as cp
+import jax.numpy as jnp
 import pytest
 
 try:
@@ -30,12 +34,14 @@ from diffsmhm.diff_stats.mpi.sigma import (
 from diffsmhm.testing import gen_mstar_data
 from diffsmhm.loader import wrap_to_local_volume_inplace
 
+from diffsmhm.diff_stats.cupy_utils import get_array_backend
+
 
 def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
     rng = np.random.RandomState(seed)
 
-    halo_catalog = dict()
-    particle_catalog = dict()
+    halo_catalog = OrderedDict()
+    particle_catalog = OrderedDict()
 
     if RANK == 0:
         _halo_catalog = gen_mstar_data(seed=seed, npts=n_halos, boxsize=lbox,
@@ -101,7 +107,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
     zmax = 40.0
     lov = max(rpmax, zmax)
 
-    rpbins = np.linspace(0.1, rpmax, n_bins+1)
+    rpbins = np.linspace(0.0, rpmax, n_bins+1)
 
     # get data
     halo_cat_orig, particle_cat_orig = _gen_data(n_halos, n_particles, n_pars,
@@ -174,19 +180,18 @@ def test_sigma_mpi_comp_and_reduce_cpu():
 
 @pytest.mark.mpi
 def test_sigma_mpi_comp_and_reduce_cuda():
-    lbox = 250.0
+    xp = get_array_backend()
 
+    lbox = 250.0
     n_bins = 10
     rpmax = 5
+    n_halos = 100
+    n_particles = 1000
+    n_pars = 3
 
     seed = 42
 
-    n_halos = 100
-    n_particles = 1000
-
-    n_pars = 3
-
-    rpbins = np.linspace(0.1, rpmax, n_bins+1)
+    rpbins = xp.linspace(0.0, rpmax, n_bins+1)
 
     zmax = 40.0
     lov = max(zmax, rpmax)
@@ -203,16 +208,24 @@ def test_sigma_mpi_comp_and_reduce_cuda():
 
     halo_dw1 = np.stack([halo_catalog["dw1_%d" % h] for h in range(n_pars)], axis=0)
 
+    # make jax version that will be on gpu if available
+    halo_catalog_jax = OrderedDict()
+    for k in halo_catalog.keys():
+        halo_catalog_jax[k] = jnp.copy(halo_catalog[k])
+    particle_catalog_jax = OrderedDict()
+    for k in particle_catalog.keys():
+        particle_catalog_jax[k] = jnp.copy(particle_catalog[k])
+
     sigma_mpi, sigma_grad_mpi = sigma_mpi_comp_and_reduce(
-        xh=halo_catalog["x"],
-        yh=halo_catalog["y"],
-        zh=halo_catalog["z"],
-        wh=halo_catalog["w1"],
-        wh_jac=halo_dw1,
-        xp=particle_catalog["x"],
-        yp=particle_catalog["y"],
-        zp=particle_catalog["z"],
-        inside_subvol=halo_catalog["_inside_subvol"],
+        xh=xp.asarray(halo_catalog_jax["x"]).astype(xp.float64),
+        yh=xp.asarray(halo_catalog_jax["y"]).astype(xp.float64),
+        zh=xp.asarray(halo_catalog_jax["z"]).astype(xp.float64),
+        wh=xp.asarray(halo_catalog_jax["w1"]).astype(xp.float64),
+        wh_jac=xp.asarray(halo_dw1).astype(xp.float64),
+        xp=xp.asarray(particle_catalog_jax["x"]).astype(xp.float64),
+        yp=xp.asarray(particle_catalog_jax["y"]).astype(xp.float64),
+        zp=xp.asarray(particle_catalog_jax["z"]).astype(xp.float64),
+        inside_subvol=xp.asarray(halo_catalog_jax["_inside_subvol"]),
         boxsize=lbox,
         rpbins=rpbins,
         zmax=zmax,
@@ -220,6 +233,11 @@ def test_sigma_mpi_comp_and_reduce_cuda():
     )
 
     if RANK == 0:
+        if xp is cp:
+            rpbins_cpu = np.array(rpbins.get())
+        else:
+            rpbins_cpu = np.copy(rpbins)
+
         # stack gradients of original, non-distributed catalog
         halo_dw1_orig = np.stack(
                                   [halo_cat_orig["dw1_%d" % h] for h in range(n_pars)],
@@ -236,7 +254,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
             xp=particle_cat_orig["x"],
             yp=particle_cat_orig["y"],
             zp=particle_cat_orig["z"],
-            rpbins=rpbins,
+            rpbins=rpbins_cpu,
             zmax=zmax,
             boxsize=lbox
         )
