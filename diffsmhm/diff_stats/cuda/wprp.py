@@ -8,19 +8,6 @@ from diffsmhm.diff_stats.cpu.wprp_utils import compute_rr_rrgrad_eff
 
 
 @cuda.jit(fastmath=False)
-def _sum_nomask(w, res, ind):
-    start = cuda.grid(1)
-    stride = cuda.gridsize(1)
-    n = w.shape[0]
-    tot = 0.0
-    for i in range(start, n, stride):
-        if w[i] > 0:
-            tot += w[i]
-
-    cuda.atomic.add(res, ind, tot)
-
-
-@cuda.jit(fastmath=False)
 def _sum2_nomask(w, res, ind):
     start = cuda.grid(1)
     stride = cuda.gridsize(1)
@@ -42,32 +29,6 @@ def _sum_prod_nomask(w1, w2, res, ind):
     for i in range(start, n, stride):
         if w1[i] > 0:
             tot += w1[i]*w2[i]
-
-    cuda.atomic.add(res, ind, tot)
-
-
-@cuda.jit(fastmath=False)
-def _sum_prod_at_ind_nomask(w1, w2, res, atind, ind):
-    start = cuda.grid(1)
-    stride = cuda.gridsize(1)
-    n = w1.shape[0]
-    tot = 0.0
-    for i in range(start, n, stride):
-        if w1[i] > 0:
-            tot += w1[i]*w2[atind, i]
-
-    cuda.atomic.add(res, ind, tot)
-
-
-@cuda.jit(fastmath=False)
-def _sum_at_ind_nomask(w1, w2, res, atind, ind):
-    start = cuda.grid(1)
-    stride = cuda.gridsize(1)
-    n = w1.shape[0]
-    tot = 0.0
-    for i in range(start, n, stride):
-        if w1[i] > 0:
-            tot += w2[atind, i]
 
     cuda.atomic.add(res, ind, tot)
 
