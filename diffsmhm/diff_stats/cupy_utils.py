@@ -8,4 +8,3 @@ def get_array_backend():
         return cp
     except RuntimeError:
         return np
-        
