@@ -166,7 +166,6 @@ def wprp_mpi_kernel_cpu(
     wprp_mpi_data : named tuple of type WprpMPIData
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
-
     n_grads = w1_jac.shape[0]
     n_rp = rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
