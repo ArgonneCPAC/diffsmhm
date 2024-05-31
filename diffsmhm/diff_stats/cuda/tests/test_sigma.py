@@ -8,14 +8,12 @@ from diffsmhm.diff_stats.cuda.sigma import sigma_serial_cuda
 
 from diffsmhm.diff_stats.mpi.tests.test_sigma import _gen_data
 
+from diffsmhm.diff_stats.cupy_utils import get_array_backend
+
 
 @pytest.mark.mpi_skip
 def test_sigma_serial_cuda():
-    try:
-        _ = cp.array([1])
-        qp = cp
-    except RuntimeError:
-        qp = np
+    qp = get_array_backend()
 
     lbox = 100.0
 

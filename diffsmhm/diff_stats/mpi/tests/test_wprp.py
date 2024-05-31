@@ -36,6 +36,8 @@ from diffsmhm.diff_stats.cuda.tests.conftest import (
     SKIP_CUDA_TESTS
 )
 
+from diffsmhm.diff_stats.cupy_utils import get_array_backend
+
 
 def _gen_data(**kwargs):
     halo_catalog = OrderedDict()
@@ -160,13 +162,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
     reason="numba not in CUDA simulator mode or no CUDA-capable GPU is available",
 )
 def test_wprp_mpi_comp_and_reduce_cuda():
-    try:
-        _ = cp.array([1])
-        xp = cp
-        can_cupy = True
-    except RuntimeError:
-        xp = np
-        can_cupy = False
+    xp = get_array_backend()
 
     lbox = 120
     zmax = 12
@@ -209,7 +205,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     )
 
     if RANK == 0:
-        if can_cupy:
+        if xp is cp:
             rpbins_squared_cpu = np.array(rpbins_squared.get())
         else:
             rpbins_squared_cpu = np.copy(rpbins_squared)

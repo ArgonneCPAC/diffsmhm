@@ -34,6 +34,8 @@ from diffsmhm.diff_stats.mpi.sigma import (
 from diffsmhm.testing import gen_mstar_data
 from diffsmhm.loader import wrap_to_local_volume_inplace
 
+from diffsmhm.diff_stats.cupy_utils import get_array_backend()
+
 
 def _gen_data(n_halos, n_particles, n_pars, lbox, seed):
     rng = np.random.RandomState(seed)
@@ -178,13 +180,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
 
 @pytest.mark.mpi
 def test_sigma_mpi_comp_and_reduce_cuda():
-    try:
-        _ = cp.array([1])
-        xp = cp
-        can_cupy = True
-    except RuntimeError:
-        xp = np
-        can_cupy = False
+    xp = get_array_backend()
 
     lbox = 250.0
     n_bins = 10

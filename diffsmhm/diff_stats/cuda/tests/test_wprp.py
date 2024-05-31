@@ -15,6 +15,8 @@ from diffsmhm.testing import gen_mstar_data
 
 from .conftest import SKIP_CUDA_TESTS
 
+from diffsmhm.diff_stats.cupy_utils import get_array_backend
+
 
 @pytest.mark.mpi_skip
 @pytest.mark.skipif(
@@ -22,11 +24,7 @@ from .conftest import SKIP_CUDA_TESTS
     reason="numba not in CUDA simulator mode or no CUDA-capable GPU is available",
 )
 def test_wprp_serial_cuda_smoke():
-    try:
-        _ = cp.array([1])
-        xp = cp
-    except RuntimeError:
-        xp = np
+    xp = get_array_backend()
 
     data = gen_mstar_data(seed=42)
 
@@ -56,11 +54,7 @@ def test_wprp_serial_cuda_smoke():
     reason="numba not in CUDA simulator mode or no CUDA-capable GPU is available",
 )
 def test_wprp_serial_cuda():
-    try:
-        _ = cp.array([1])
-        xp = cp
-    except RuntimeError:
-        xp = np
+    xp = get_array_backend()
 
     data = gen_mstar_data(seed=42)
 
