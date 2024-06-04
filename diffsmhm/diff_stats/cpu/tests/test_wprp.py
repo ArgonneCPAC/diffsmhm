@@ -15,12 +15,14 @@ def test_wprp_serial_cpu_smoke():
     data = gen_mstar_data(seed=42)
 
     nrp = data["rp_bins"].shape[0] - 1
+    mask = data["w"] > 0.0
     wprp, wprp_grad = wprp_serial_cpu(
         x1=data["x"],
         y1=data["y"],
         z1=data["z"],
         w1=data["w"],
         w1_jac=data["w_jac"],
+        mask=mask,
         rpbins_squared=data["rp_bins"]**2,
         zmax=data["zmax"],
         boxsize=data["boxsize"],
@@ -37,6 +39,7 @@ def test_wprp_serial_cpu_smoke():
 @pytest.mark.mpi_skip
 def test_wprp_serial_cpu_derivs():
     data = gen_mstar_data(seed=42)
+    mask = data["w"] > 0.0
 
     wprp, wprp_grad = wprp_serial_cpu(
         x1=data["x"],
@@ -44,6 +47,7 @@ def test_wprp_serial_cpu_derivs():
         z1=data["z"],
         w1=data["w"],
         w1_jac=data["w_jac"],
+        mask=mask,
         rpbins_squared=data["rp_bins"]**2,
         zmax=data["zmax"],
         boxsize=data["boxsize"],
@@ -58,6 +62,7 @@ def test_wprp_serial_cpu_derivs():
             z1=data["z"],
             w1=w_p,
             w1_jac=data["w_jac"],
+            mask=mask,
             rpbins_squared=data["rp_bins"]**2,
             zmax=data["zmax"],
             boxsize=data["boxsize"],
@@ -70,6 +75,7 @@ def test_wprp_serial_cpu_derivs():
             z1=data["z"],
             w1=w_m,
             w1_jac=data["w_jac"],
+            mask=mask,
             rpbins_squared=data["rp_bins"]**2,
             zmax=data["zmax"],
             boxsize=data["boxsize"],
