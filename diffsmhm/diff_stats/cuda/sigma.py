@@ -5,6 +5,8 @@ from numba import cuda
 
 import math
 
+from diffsmhm.diff_stats.mpi.types import SigmaMPIData
+
 
 def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
     # copy particles within buffer_length of an edge in XY
@@ -213,8 +215,11 @@ def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
 @cuda.jit(fastmath=False)
 def _count_particles(
     xh, yh, zh,
-    wh, wh_jac, n_grads,
+    wh, wh_jac,
+    mask,
+    n_grads,
     xp, yp, zp,
+    start_idx, end_idx,
     rpbins,
     zmax,
     result, result_grad
@@ -224,35 +229,36 @@ def _count_particles(
     stride = cuda.gridsize(1)
 
     n_halos = len(xh)
-    n_particles = len(xp)
     n_bins = len(rpbins) - 1
 
     # for each halo
     for i in range(start, n_halos, stride):
-        # for each particle
-        for j in range(n_particles):
-            # ensure Z distance is within range
-            if abs(zh[i] - zp[j]) > zmax:
-                continue
+        if mask[i]:
+            # for each particle in specified range
+            for j in range(start_idx, end_idx):
+                # ensure Z distance is within range
+                if abs(zh[i] - zp[j]) > zmax:
+                    continue
 
-            # calculate XY distance
-            pdist = math.sqrt((xh[i]-xp[j])*(xh[i]-xp[j]) +
-                              (yh[i]-yp[j])*(yh[i]-yp[j]))
+                # calculate XY distance
+                pdist = math.sqrt((xh[i]-xp[j])*(xh[i]-xp[j]) +
+                                  (yh[i]-yp[j])*(yh[i]-yp[j]))
 
-            for r in range(n_bins):
-                if pdist >= rpbins[r] and pdist < rpbins[r+1]:
-                    # add weight from halo
-                    cuda.atomic.add(result, r, wh[i])
-                    # and for gradients
-                    for g in range(n_grads):
-                        cuda.atomic.add(result_grad, (g, r), wh_jac[g, i])
-                    break
+                for r in range(n_bins):
+                    if pdist >= rpbins[r] and pdist < rpbins[r+1]:
+                        # add weight from halo
+                        cuda.atomic.add(result, r, wh[i])
+                        # and for gradients
+                        for g in range(n_grads):
+                            cuda.atomic.add(result_grad, (g, r), wh_jac[g, i])
+                        break
 
 
 def sigma_serial_cuda(
     *,
     xh, yh, zh, wh,
     wh_jac,
+    mask,
     xp, yp, zp,
     rpbins,
     zmax,
@@ -270,6 +276,10 @@ def sigma_serial_cuda(
         The arrays of positions and weights for the halos.
     wh_jac : array-like, shape(n_grads, n_halos,)
         The array of weight gradients for the first set of points.
+    mask : array-like, shape (n_halos,)
+        A boolean array with `True` for halos to be included and `False` for halos
+        to be ignored. Generally used to mask out zero weights. Passed as a
+        parameter to avoid copying masked data with each kernel call.
     xp, yp, zp : array-like, shape (n_particles,)
         The arrays of positions for the particles.
     rpbins : array-like, shape (n_rpbins+1,)
@@ -317,7 +327,9 @@ def sigma_serial_cuda(
 
     # do the actual counting on GPU
     _count_particles[blocks, threads](
-                                      xh, yh, zh, wh, wh_jac, n_grads,
+                                      xh, yh, zh, wh, wh_jac,
+                                      mask,
+                                      n_grads,
                                       xp_p, yp_p, zp_p,
                                       rpbins,
                                       zmax,
@@ -355,6 +367,7 @@ def sigma_mpi_kernel_cuda(
     *,
     xh, yh, zh, wh,
     wh_jac,
+    mask,
     xp, yp, zp,
     rpbins,
     zmax,
@@ -372,6 +385,10 @@ def sigma_mpi_kernel_cuda(
         The arrays of positions and weights for the halos.
     wh_jac : array-like, shape (n_grads, n_halos,)
         The array of weight gradients for the first set of points.
+    mask : array-like, shape (n_halos,)
+        A boolean array with `True` for halos to be included and `False` for halos
+        to be ignored. Generally used to mask out zero weights. Passed as a
+        parameter to avoid copying masked data with each kernel call.
     xp, yp, zp : array-like, shape (n_particles,)
         The arrays of positions for the particles.
     rpbins : array-like, shape (n_rpbins+1,)
@@ -387,30 +404,30 @@ def sigma_mpi_kernel_cuda(
 
     Returns
     -------
-    sigma : array-like, shape(n_rpbins,)
-        The surface density at each radial bin.
-    sigma_grad_1st : array-like, shape(n_grads, n_rpbins)
-        Partial sum of the first term of the gradients for sigma.
+    sigma_mpi_data : named typle of type SigmaMPIData
+        A named tuple of the data needed for the MPI reduction and final summary stats.
     """
     # check if cupy is available
     # bc github CI doesn't work with cupy currently
-    qp = cp.get_array_module(xp)
+    qp = cp.get_array_module(xp[0])
     can_cupy = qp is cp
 
-    # check that first bin starts at zero
-    assert qp.allclose(rpbins[0], 0)
-
-    # set up sizes
-    n_grads = wh_jac.shape[0]
-    n_rpbins = len(rpbins) - 1
-
+    # use multiple GPUs is available
     n_devices = 1
     if can_cupy:
         n_devices = len(cuda.gpus)
 
+    # check that first bin starts at zero
+    for d in range(n_devices):
+        assert qp.allclose(rpbins[d][0], 0)
+
+    # set up sizes
+    n_grads = wh_jac[0].shape[0]
+    n_rpbins = len(rpbins[0]) - 1
+
     # split the particle data into chunks for each device
     # this made more of a performance difference than splitting by halos
-    avg, rem = divmod(len(xp), n_devices)
+    avg, rem = divmod(len(xp[0]), n_devices)
     device_count = [avg + 1 if p < rem else avg for p in range(n_devices)]
     device_displ = [sum(device_count[:p]) for p in range(n_devices)]
     # list of results for combination later
@@ -423,23 +440,9 @@ def sigma_mpi_kernel_cuda(
         start_idx = displ
         end_idx = displ + count
 
-        # assuming cupy, copy data to relevant device
+        # data must already be copied to relevant gpus
         if can_cupy:
             cp.cuda.Device(d).use()
-        xh_d = qp.copy(xh)
-        yh_d = qp.copy(yh)
-        zh_d = qp.copy(zh)
-
-        wh_d = qp.copy(wh)
-        wh_jac_d = qp.copy(wh_jac)
-
-        # unlike wprp we can just cut down the copied arrays
-        # and doing it here is faster than on the halos
-        xp_d = qp.copy(xp[start_idx:end_idx])
-        yp_d = qp.copy(yp[start_idx:end_idx])
-        zp_d = qp.copy(zp[start_idx:end_idx])
-
-        rpbins_d = qp.copy(rpbins)
 
         sigma_d = qp.zeros(n_rpbins, dtype=qp.float64)
         sigma_grad_1st_d = qp.zeros((n_grads, n_rpbins),
@@ -447,10 +450,13 @@ def sigma_mpi_kernel_cuda(
 
         # launch kernel
         _count_particles[blocks, threads](
-                                            xh_d, yh_d, zh_d,
-                                            wh_d, wh_jac_d, n_grads,
-                                            xp_d, yp_d, zp_d,
-                                            rpbins_d,
+                                            xh[d], yh[d], zh[d],
+                                            wh[d], wh_jac[d],
+                                            mask[d],
+                                            n_grads,
+                                            xp[d], yp[d], zp[d],
+                                            start_idx, end_idx,
+                                            rpbins[d],
                                             zmax,
                                             sigma_d,
                                             sigma_grad_1st_d
@@ -462,11 +468,11 @@ def sigma_mpi_kernel_cuda(
 
     # now add the distributed calculation
     if can_cupy:
-        cp.cuda.Device(n_devices-1).use()
-    sigma_exp = qp.copy(result_all[-1])
-    sigma_grad_1st = qp.copy(result_grad_all[-1])
-    for d in range(n_devices-1):
-        # let's be explicit moving data between devices
+        cp.cuda.Device(0).use()
+    sigma_exp = qp.copy(result_all[0])
+    sigma_grad_1st = qp.copy(result_grad_all[0])
+    for d in range(1, n_devices):
+        # let's be explicit about moving data between devices
         rd = qp.copy(result_all[d])
         rd_grad = qp.copy(result_grad_all[d])
 
@@ -475,11 +481,22 @@ def sigma_mpi_kernel_cuda(
 
     sigma_grad_1st = sigma_grad_1st.reshape((n_grads, n_rpbins))
 
+    # do radial normalization
+    sigma_exp /= qp.pi * (rpbins[0][1:]**2 - rpbins[0][:-1]**2)
+
     # return data on cpu
     if can_cupy:
-        sigma_exp_cpu = qp.asnumpy(sigma_exp.get())
-        sigma_grad_1st_cpu = qp.asnumpy(sigma_grad_1st.get())
+        return SigmaMPIData(
+                sigma=qp.asnumpy(sigma_exp.get()),
+                sigma_grad_1st=qp.asnumpy(sigma_grad_1st.get()),
+                w_tot=qp.asnumpy(qp.sum(wh[0][mask[0]])),
+                w_jac_tot=qp.asnumpy(qp.sum(wh_jac[0][:, mask[0]], axis=1))
+        )
 
-        return sigma_exp_cpu, sigma_grad_1st_cpu
     else:
-        return sigma_exp, sigma_grad_1st
+        return SigmaMPIData(
+                sigma=sigma_exp,
+                sigma_grad_1st=sigma_grad_1st,
+                w_tot=np.sum(wh[0][mask[0]]),
+                s_jac_tot=np.sum(wh_jac[0][:, mask[0]], axis=1)
+        )
