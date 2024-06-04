@@ -331,6 +331,7 @@ def sigma_serial_cuda(
                                       mask,
                                       n_grads,
                                       xp_p, yp_p, zp_p,
+                                      0, len(xp_p),
                                       rpbins,
                                       zmax,
                                       sigma_device,
