@@ -26,6 +26,9 @@ def test_wprp_serial_cuda_smoke():
     xp = get_array_backend()
 
     data = gen_mstar_data(seed=42)
+    wgt_mask = data["w"] > 0
+    dwgt_mask = np.sum(np.abs(data["w_jac"]), axis=0) > 0
+    full_mask = wgt_mask & dwgt_mask
 
     nrp = data["rp_bins"].shape[0] - 1
     wprp, wprp_grad = wprp_serial_cuda(
@@ -34,6 +37,7 @@ def test_wprp_serial_cuda_smoke():
         z1=xp.asarray(data["z"]),
         w1=xp.asarray(data["w"]),
         w1_jac=xp.asarray(data["w_jac"]),
+        mask=xp.array(full_mask),
         rpbins_squared=xp.asarray(data["rp_bins"]**2),
         zmax=data["zmax"],
         boxsize=data["boxsize"],
@@ -56,6 +60,9 @@ def test_wprp_serial_cuda():
     xp = get_array_backend()
 
     data = gen_mstar_data(seed=42)
+    wgt_mask = data["w"] > 0
+    dwgt_mask = np.sum(np.abs(data["w_jac"]), axis=0) > 0
+    full_mask = wgt_mask & dwgt_mask
 
     wprp_cuda, wprp_grad_cuda = wprp_serial_cuda(
         x1=xp.asarray(data["x"]),
@@ -63,6 +70,7 @@ def test_wprp_serial_cuda():
         z1=xp.asarray(data["z"]),
         w1=xp.asarray(data["w"]),
         w1_jac=xp.asarray(data["w_jac"]),
+        mask=xp.array(full_mask),
         rpbins_squared=xp.asarray(data["rp_bins"]**2),
         zmax=data["zmax"],
         boxsize=data["boxsize"],
@@ -74,6 +82,7 @@ def test_wprp_serial_cuda():
         z1=data["z"],
         w1=data["w"],
         w1_jac=data["w_jac"],
+        mask=full_mask,
         rpbins_squared=data["rp_bins"]**2,
         zmax=data["zmax"],
         boxsize=data["boxsize"],
