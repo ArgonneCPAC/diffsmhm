@@ -33,6 +33,9 @@ def test_sigma_serial_cuda():
     halo_cat, particle_cat = _gen_data(n_halos, n_particles, n_pars, lbox, seed)
 
     halo_dw1 = np.stack([halo_cat["dw1_%d" % h] for h in range(n_pars)], axis=0)
+    wgt_mask = halo_cat["w1"] > 0
+    dwgt_mask = np.sum(np.abs(halo_dw1), axis=0) > 0
+    full_mask = wgt_mask & dwgt_mask
 
     sigma_cuda, sigma_grad_cuda = sigma_serial_cuda(
         xh=qp.asarray(halo_cat["x"]),
@@ -40,6 +43,7 @@ def test_sigma_serial_cuda():
         zh=qp.asarray(halo_cat["z"]),
         wh=qp.asarray(halo_cat["w1"]),
         wh_jac=qp.asarray(halo_dw1),
+        mask=qp.asarray(full_mask),
         xp=qp.asarray(particle_cat["x"]),
         yp=qp.asarray(particle_cat["y"]),
         zp=qp.asarray(particle_cat["z"]),
@@ -54,6 +58,7 @@ def test_sigma_serial_cuda():
         zh=halo_cat["z"],
         wh=halo_cat["w1"],
         wh_jac=halo_dw1,
+        mask=full_mask,
         xp=particle_cat["x"],
         yp=particle_cat["y"],
         zp=particle_cat["z"],
