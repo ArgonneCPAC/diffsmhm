@@ -250,6 +250,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
             nbins=nbins,
         )
         dw1 = np.stack([orig_halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
+        mask = orig_halo_catalog["w1"] > 0
         (
             wprp_serial,
             wprp_grad_serial,
@@ -259,6 +260,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
             z1=orig_halo_catalog["z"].astype(np.float64),
             w1=orig_halo_catalog["w1"].astype(np.float64),
             w1_jac=dw1,
+            mask=mask,
             rpbins_squared=rpbins_squared_cpu,
             zmax=zmax,
             boxsize=lbox,
