@@ -1,5 +1,4 @@
 import numpy as np
-import cupy as cp
 
 try:
     from mpi4py import MPI
