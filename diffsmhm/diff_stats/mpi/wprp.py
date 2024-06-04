@@ -16,7 +16,15 @@ from diffsmhm.utils import time_step
 
 
 def wprp_mpi_comp_and_reduce(
-    *, x1, y1, z1, w1, w1_jac, inside_subvol, rpbins_squared, zmax, boxsize, kernel_func
+    *,
+    x1, y1, z1, w1,
+    w1_jac,
+    inside_subvol,
+    mask,
+    rpbins_squared,
+    zmax,
+    boxsize,
+    kernel_func
 ):
     """The per-process CPU kernel for MPI-parallel wprp computations.
 
@@ -29,6 +37,11 @@ def wprp_mpi_comp_and_reduce(
     inside_subvol : array-like, shape (n_pts,)
         A boolean array with `True` when the point is inside the subvolume
         and `False` otherwise.
+    mask : array-like, shape (n_puts,)
+        A boolean array with `True` when the point is to be counted and `False`
+        otherwise. Generally used for masking out zero weights. Passed as an
+        argument to avoid copying masked data at every function call. Note that
+        `mask` and `inside_subvol` must be kept separate for wprp.
     rpbins_squared : array-like, shape (n_rpbins+1,)
         Array of the squared bin edges in the `rp` direction. Note that
         this array is one longer than the number of bins in `rp` direction.
@@ -54,6 +67,7 @@ def wprp_mpi_comp_and_reduce(
             x1=x1, y1=y1, z1=z1,
             w1=w1, w1_jac=w1_jac,
             inside_subvol=inside_subvol,
+            mask=mask,
             rpbins_squared=rpbins_squared,
             zmax=zmax,
             boxsize=boxsize,
@@ -92,10 +106,17 @@ def wprp_mpi_comp_and_reduce(
         # now do norm by RR and compute proper grad
         if RANK == 0:
             # if need be convert some things to numpy from cupy
-            try:
-                rpbins_squared = np.array(rpbins_squared)
-            except TypeError:
-                rpbins_squared = np.array(rpbins_squared.get())
+            # CPU kernels dont take lists of arrays, so need to handle both cases
+            if isinstance(rpbins_squared, list):
+                try:
+                    rpbins_squared = np.array(rpbins_squared[0])
+                except TypeError:
+                    rpbins_squared = np.array(rpbins_squared[0].get())
+            else:
+                try:
+                    rpbins_squared = np.array(rpbins_squared)
+                except TypeError:
+                    rpbins_squared = np.array(rpbins_squared.get())
 
             n_eff = w_tot**2 / w2_tot
 
