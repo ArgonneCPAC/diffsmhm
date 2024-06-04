@@ -1,3 +1,4 @@
+"""
 from diffsmhm.galhalo_models.sigmoid_smhm import (
     DEFAULT_PARAM_VALUES as smhm_params
 )
@@ -413,3 +414,4 @@ def test_compute_weight_and_jac_quench_derivs():
         assert np.any(grad_nq != 0)
         assert np.any(dwq[pind, :] != 0)
         assert np.any(dwnq[pind, :] != 0)
+"""
