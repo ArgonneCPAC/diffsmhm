@@ -192,7 +192,7 @@ def wprp_mpi_kernel_cpu(
         X2=x1[mask],
         Y2=y1[mask],
         Z2=z1[mask],
-        weights2=w1,
+        weights2=w1[mask],
         periodic=False,
         weight_type="pair_product",
     )
@@ -215,7 +215,7 @@ def wprp_mpi_kernel_cpu(
             X2=x1[mask],
             Y2=y1[mask],
             Z2=z1[mask],
-            weights2=w1_jac[g, :],
+            weights2=w1_jac[g, mask],
             periodic=False,
             weight_type="pair_product",
         )
@@ -223,7 +223,6 @@ def wprp_mpi_kernel_cpu(
             res["weightavg"].reshape((n_rp, n_pi))
             * res["npairs"].reshape((n_rp, n_pi))
         )
-
         res = Corrfunc.theory.DDrppi(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
@@ -236,7 +235,7 @@ def wprp_mpi_kernel_cpu(
             X2=x1[mask],
             Y2=y1[mask],
             Z2=z1[mask],
-            weights2=w1,
+            weights2=w1[mask],
             periodic=False,
             weight_type="pair_product",
         )
