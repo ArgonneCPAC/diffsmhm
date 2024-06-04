@@ -1,6 +1,5 @@
 import numpy as np
 import cupy as cp
-import matplotlib.pyplot as plt
 
 import jax
 import jax.numpy as jnp
@@ -9,7 +8,6 @@ from jax import custom_vjp
 import blackjax
 
 import pandas as pd
-import pickle
 
 from collections import OrderedDict
 
@@ -53,31 +51,42 @@ from diffsmhm.analysis.scripts.hmc_bounding import (
     logdens_model_to_logdens_hmc
 )
 
+from diffsmhm.analysis.tools.fim import (
+    make_FIM
+)
+
 # data files and rpwp params
-halo_file="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
-particle_file="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
-box_length = 250.0 # Mpc
-buff_wprp = 20.0 # Mpc
+halo_file = "/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
+particle_file = "/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
+box_length = 250.0
+buff_wprp = 20.0
 
 mass_bin_edges = np.array([10.0, 11.0], dtype=np.float64)
 
-rpbins = np.logspace(-1, 1.2, 5, dtype=np.float64)
-zmax = 20.0 # Mpc
+rpbins = cp.logspace(-1, 1.3, 16, dtype=np.float64)
+zmax = 20.0
 
-theta = np.array(list(smhm_params.values()) + 
-                 list(smhm_sigma_params.values()) + 
-                 list(disruption_params.values()), dtype=np.float64
-)
+theta = np.array(list(smhm_params.values()) +
+                 list(smhm_sigma_params.values()) +
+                 list(disruption_params.values()), dtype=np.float64)
 theta_init = np.copy(theta)
 
 n_params = len(theta)
 n_rpbins = len(rpbins) - 1
 
 # hmc params
-n_warmup_steps = 1
-n_iter = 1
+load_warmup = True
+load_hmc = False
+n_iter = 500
+hmc_step_size = 2.5e-1
 #
-hmcut = 14.6
+hmcut = 13.3
+# 14.6, 14.0, 13.3, 9.0, 0.0
+
+# output files
+suffix = str(hmcut)+"_"+str(mass_bin_edges[0])+"_"+str(mass_bin_edges[1])
+fpath_fim = "output/fim_"+suffix+".npy"
+fpath_positions = "output/positions_"+suffix+".csv"
 
 lower_bounds = np.array([
     smhm_bounds["smhm_logm_crit"][0],
@@ -122,11 +131,15 @@ halos, _ = load_and_chop_data_bolshoi_planck(
 )
 
 idx_to_deposit = _calculate_indx_to_deposit(halos["upid"], halos["halo_id"])
+idx_to_deposit = jnp.copy(idx_to_deposit)
 
-# make a jax gpu version of the catalog
-halos_gpu = OrderedDict()
+# make a jax version of the catalog for the weights
+# make a cupy version of the catalog for the kernels?
+halos_jax = OrderedDict()
+halos_cp = OrderedDict()
 for k in halos.keys():
-    halos_gpu[k] = jnp.copy(halos[k])
+    halos_jax[k] = jnp.copy(halos[k])
+    halos_cp[k] = cp.array(halos[k])
 
 print(RANK, "data loaded", len(idx_to_deposit), flush=True)
 
@@ -141,10 +154,10 @@ if RANK == 0:
 # rpwp, quenched and unquenched
 t0 = time.time()
 w, dw = compute_weight_and_jac(
-            logmpeak=halos_gpu["logmpeak"],
-            loghost_mpeak=halos_gpu["loghost_mpeak"],
-            log_vmax_by_vmpeak=halos_gpu["logvmax_frac"],
-            upid=halos_gpu["upid"],
+            logmpeak=halos_jax["logmpeak"],
+            loghost_mpeak=halos_jax["loghost_mpeak"],
+            log_vmax_by_vmpeak=halos_jax["logvmax_frac"],
+            upid=halos_jax["upid"],
             idx_to_deposit=idx_to_deposit,
             mass_bin_low=mass_bin_edges[0],
             mass_bin_high=mass_bin_edges[1],
@@ -155,19 +168,19 @@ print("weights done:", t1-t0)
 
 # mask out gals with zero weight and zero weight grad
 mask_wgt = w != 0.0
-mask_dwgt = cp.sum(cp.abs(dw),axis=0) != 0.0
+mask_dwgt = cp.sum(cp.abs(dw), axis=0) != 0.0
 full_mask = mask_wgt & mask_dwgt
 
 print(RANK, "n gals:", len(w[full_mask]), flush=True)
 
 t0 = time.time()
 wprp_goal, _ = wprp_mpi_comp_and_reduce(
-                x1=cp.asarray(halos_gpu["halo_x"])[full_mask].astype(cp.float64),
-                y1=cp.asarray(halos_gpu["halo_y"])[full_mask].astype(cp.float64),
-                z1=cp.asarray(halos_gpu["halo_z"])[full_mask].astype(cp.float64),
-                w1=w[full_mask].astype(cp.float64),
-                w1_jac=dw[:, full_mask].astype(cp.float64),
-                inside_subvol=cp.asarray(halos_gpu["_inside_subvol"])[full_mask],
+                x1=cp.asarray(halos_cp["halo_x"][full_mask]),
+                y1=cp.asarray(halos_cp["halo_y"][full_mask]),
+                z1=cp.asarray(halos_cp["halo_z"][full_mask]),
+                w1=cp.asarray(w[full_mask]),
+                w1_jac=cp.asarray(dw[:, full_mask]),
+                inside_subvol=cp.asarray(halos_cp["_inside_subvol"][full_mask]),
                 rpbins_squared=rpbins**2,
                 zmax=zmax,
                 boxsize=box_length,
@@ -185,7 +198,6 @@ ncalls = np.array([0], dtype="i")
 
 # define functions
 
-# transform functions; following STAN manual for bounded scalar
 
 # logdensity function set upi
 # note that only rank zero will deal with this func
@@ -203,9 +215,9 @@ def logdensity(
     U = get_potential(theta_model)
 
     # convert potential to logdensity
-    log_density_model = -1.0 * U 
+    log_density_model = -1.0 * U
 
-    # transform logdensity of model into hmc logdensity 
+    # transform logdensity of model into hmc logdensity
     log_density_hmc = logdens_model_to_logdens_hmc(
                         log_density_model,
                         theta_hmc,
@@ -216,20 +228,20 @@ def logdensity(
     return log_density_hmc
 
 
-# method to calculate quenched and unquenched rpwp 
+# method to calculate quenched and unquenched rpwp
 # this is what we pure_callback to; it returns both value and gradient
 def potential(
     theta,
     wprp_goal=wprp_goal,
-    log_halomass=halos_gpu["logmpeak"],
-    log_host_halomass=halos_gpu["loghost_mpeak"],
-    log_vmax_by_vmpeak=halos_gpu["logvmax_frac"],
-    halo_x=halos_gpu["halo_x"],
-    halo_y=halos_gpu["halo_y"],
-    halo_z=halos_gpu["halo_z"],
-    upid=halos_gpu["upid"],
+    log_halomass=halos_jax["logmpeak"],
+    log_host_halomass=halos_jax["loghost_mpeak"],
+    log_vmax_by_vmpeak=halos_jax["logvmax_frac"],
+    halo_x=halos_jax["halo_x"],
+    halo_y=halos_jax["halo_y"],
+    halo_z=halos_jax["halo_z"],
+    upid=halos_jax["upid"],
     idx_to_deposit=idx_to_deposit,
-    inside_subvol=halos_gpu["_inside_subvol"],
+    inside_subvol=halos_jax["_inside_subvol"],
     mass_bin_low=mass_bin_edges[0], mass_bin_high=mass_bin_edges[1],
     rpbins=rpbins,
     zmax=zmax,
@@ -264,12 +276,12 @@ def potential(
         exit(1)
 
     wprp, wprp_grad = wprp_mpi_comp_and_reduce(
-                        x1=cp.asarray(halo_x)[full_mask].astype(cp.float64),
-                        y1=cp.asarray(halo_y)[full_mask].astype(cp.float64),
-                        z1=cp.asarray(halo_z)[full_mask].astype(cp.float64),
-                        w1=cp.asarray(w)[full_mask].astype(cp.float64),
-                        w1_jac=cp.asarray(dw)[:, full_mask].astype(cp.float64),
-                        inside_subvol=cp.asarray(inside_subvol)[full_mask],
+                        x1=cp.asarray(halos_cp["halo_x"][full_mask]),
+                        y1=cp.asarray(halos_cp["halo_y"][full_mask]),
+                        z1=cp.asarray(halos_cp["halo_z"][full_mask]),
+                        w1=cp.asarray(w[full_mask]),
+                        w1_jac=cp.asarray(dw[:, full_mask]),
+                        inside_subvol=cp.asarray(halos_cp["_inside_subvol"][full_mask]),
                         rpbins_squared=rpbins**2,
                         zmax=zmax,
                         boxsize=boxsize,
@@ -295,7 +307,8 @@ def get_potential(
                     theta
     )
 
-    return val 
+    return val
+
 
 def vjp_fwd(
     theta
@@ -309,28 +322,17 @@ def vjp_fwd(
 
     return val, grad
 
+
 def vjp_bwd(grad, tan):
     # note that blackjax expects a tuple here
     return (grad * tan,)
+
 
 get_potential.defvjp(vjp_fwd, vjp_bwd)
 
 # this is where we split up the ranks
 
-# tmp
-"""
-ldg = jax.jacrev(logdensity)
-if RANK == 0:
-    #anyout = potential(theta_goal)
-    #anyout = get_potential(theta_goal)
-    thmc = model_pos_to_hmc_pos(theta_goal, lower_bounds, upper_bounds)
-    anyout = logdensity(thmc)
-    anyout = ldg(thmc)
-    # end if these pass
-    COMM.Bcast([-1*np.ones_like(theta, dtype=np.float64), MPI.DOUBLE], root=0)
-"""
-
-# sampler set up 
+# sampler set up
 
 # non 0 mpi ranks just loop until told to stop
 if RANK > 0:
@@ -345,10 +347,10 @@ if RANK > 0:
 
         # do computation with jax
         w, dw = compute_weight_and_jac(
-                    logmpeak=halos_gpu["logmpeak"],
-                    loghost_mpeak=halos_gpu["loghost_mpeak"],
-                    log_vmax_by_vmpeak=halos_gpu["logvmax_frac"],
-                    upid=halos_gpu["upid"],
+                    logmpeak=halos_jax["logmpeak"],
+                    loghost_mpeak=halos_jax["loghost_mpeak"],
+                    log_vmax_by_vmpeak=halos_jax["logvmax_frac"],
+                    upid=halos_jax["upid"],
                     idx_to_deposit=idx_to_deposit,
                     mass_bin_low=mass_bin_edges[0],
                     mass_bin_high=mass_bin_edges[1],
@@ -361,17 +363,17 @@ if RANK > 0:
         full_mask = mask_wgt & mask_dwgt
         full_mask = full_mask.get()
 
-        if len(halos_gpu["halo_x"][full_mask]) == 0:
+        if len(halos_cp["halo_x"][full_mask]) == 0:
             print(RANK, "zero condition", flush=True)
 
         # do computation with CUDA
         _, _ = wprp_mpi_comp_and_reduce(
-                    x1=cp.asarray(halos_gpu["halo_x"])[full_mask].astype(cp.float64),
-                    y1=cp.asarray(halos_gpu["halo_y"])[full_mask].astype(cp.float64),
-                    z1=cp.asarray(halos_gpu["halo_z"])[full_mask].astype(cp.float64),
-                    w1=cp.asarray(w)[full_mask].astype(cp.float64),
-                    w1_jac=cp.asarray(dw)[:, full_mask].astype(cp.float64),
-                    inside_subvol=cp.asarray(halos_gpu["_inside_subvol"])[full_mask],
+                    x1=cp.asarray(halos_cp["halo_x"][full_mask]),
+                    y1=cp.asarray(halos_cp["halo_y"][full_mask]),
+                    z1=cp.asarray(halos_cp["halo_z"][full_mask]),
+                    w1=cp.asarray(w[full_mask]),
+                    w1_jac=cp.asarray(dw[:, full_mask]),
+                    inside_subvol=halos_cp["_inside_subvol"][full_mask],
                     rpbins_squared=rpbins**2,
                     zmax=zmax,
                     boxsize=box_length,
@@ -380,7 +382,7 @@ if RANK > 0:
 
     if RANK == 1:
         print("while exited")
-#"""
+
 # RANK 0 continues with the HMC
 else:
     rng_key = jax.random.PRNGKey(42)
@@ -389,51 +391,72 @@ else:
     initial_position = model_pos_to_hmc_pos(theta_init, lower_bounds, upper_bounds)
 
     # split the key
-    rng_key, sample_key, warmup_key = jax.random.split(rng_key, 3)
+    rng_key, sample_key = jax.random.split(rng_key, 2)
 
-    print("Begin warmup", flush=True)
-    warmup = blackjax.window_adaptation(blackjax.nuts, logdensity,
-                                        initial_step_size=1e-4,
-                                        is_mass_matrix_diagonal=True,
-                                        progress_bar=True)
-    t0 = time.time()
-    (init_state, tuned_params), _ = warmup.run(warmup_key, initial_position,
-                                               num_steps=n_warmup_steps)
-    t1 = time.time()
+    # make FIM as mass matrix or load
+    if not load_warmup:
+        ld_grad = jax.jacrev(logdensity)
+        theta_fim = model_pos_to_hmc_pos(
+                        theta_goal, lower_bounds, upper_bounds
+        )
+        FIM = make_FIM(ld_grad, theta_fim)
+        np.save(fpath_fim, FIM)
+    else:
+        # load if specified
+        FIM = np.load(fpath_fim)
 
-    ncalls_w = ncalls[0]
-    print("Warm up done", "t:", t1-t0, "n:", ncalls_w, flush=False)
-    print(init_state)
-    print(tuned_params, flush=True)
+    # load prior chain if specified
+    if load_hmc:
+        mpos = np.array(pd.read_csv(fpath_positions).iloc[-1:].values[0],
+                        dtype=np.float64)
+        init_pos = model_pos_to_hmc_pos(mpos, lower_bounds, upper_bounds)
+    else:
+        init_pos = model_pos_to_hmc_pos(theta_goal, lower_bounds, upper_bounds)
 
-    hmc = blackjax.nuts(logdensity, **tuned_params)
-
-    init_pos = model_pos_to_hmc_pos(theta_goal, lower_bounds, upper_bounds)
-    init_state_d = hmc.init(init_pos)
+    hmc = blackjax.nuts(logdensity, hmc_step_size, FIM)
+    init_state = hmc.init(init_pos)
 
     # build kernel and inference loop
     hmc_kernel = jax.jit(hmc.step)
 
-    # run inference loop
     def inference_loop(rng_key, kernel, initial_state, num_samples):
         @jax.jit
         def one_step(state, rng_key):
-            state, _ = kernel(rng_key, state)
-            return state, state
+            state, info = kernel(rng_key, state)
+            return state, (state, info)
 
         keys = jax.random.split(rng_key, num_samples)
-        _, states = jax.lax.scan(one_step, initial_state, keys)
+        _, (states, infos) = jax.lax.scan(one_step, initial_state, keys)
 
-        return states
+        infos_tuple = (
+                        infos.acceptance_rate,
+                        infos.is_divergent,
+                        infos.num_integration_steps,
+        )
+
+        return states, infos_tuple
 
     t0 = time.time()
-    states = inference_loop(sample_key, hmc_kernel, init_state_d, n_iter)
+    states, infos = inference_loop(sample_key, hmc_kernel, init_state, n_iter)
     t1 = time.time()
 
-    ncalls_h = ncalls[0] - ncalls_w
-    print("hmc done", "t:", t1-t0, "n:", ncalls_h, flush=True)
+    print("hmc done", "t:", t1-t0, "n:", ncalls[0])
+    print("acceptance rate:", np.mean(infos[0]), flush=True)
 
     # we're done iterating, broadcast FALSE to stop the other ranks
     cont = -1*np.ones_like(theta)
     COMM.Bcast(cont, root=0)
     print("opt done", flush=True)
+
+    # save output
+    positions = states.position
+    positions_df = pd.DataFrame.from_dict(positions)
+    # transform from HMC positions to model positions
+    for p, key in enumerate(positions_df.keys()):
+        positions_df[key] = hmc_pos_to_model_pos(np.array(positions_df[key]),
+                                                 lower_bounds[p], upper_bounds[p])
+
+    if load_hmc:
+        positions_df.to_csv(fpath_positions, mode="a", header=False, index=False)
+    else:
+        positions_df.to_csv(fpath_positions, mode="w", header=True, index=False)
