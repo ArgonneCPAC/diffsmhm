@@ -35,7 +35,7 @@ def _sum_prod_nomask(w1, w2, res, ind):
 
 @cuda.jit(fastmath=False)
 def _count_weighted_pairs_rppi_with_derivs_periodic_cuda(
-    x1, y1, z1, w1, dw1, rpbins_squared, n_pi, result, result_grad,
+    x1, y1, z1, w1, dw1, mask, rpbins_squared, n_pi, result, result_grad,
     boxsize, boxsize_2
 ):
     start = cuda.grid(1)
@@ -51,14 +51,14 @@ def _count_weighted_pairs_rppi_with_derivs_periodic_cuda(
     # this happens at two points on the real line for a smooth triweight
     # kernel, so hopefully we can ignore it
     for i in range(start, n1, stride):
-        if w1[i] > 0:
+        if mask[i]:
             px = x1[i]
             py = y1[i]
             pz = z1[i]
             pw = w1[i]
 
             for j in range(i+1, n1):
-                if w1[j] > 0:
+                if mask[j]:
                     qx = x1[j]
                     qy = y1[j]
                     qz = z1[j]
@@ -113,6 +113,7 @@ def wprp_serial_cuda(
     z1,
     w1,
     w1_jac,
+    mask,
     rpbins_squared,
     zmax,
     boxsize,
@@ -127,6 +128,10 @@ def wprp_serial_cuda(
         The arrays of positions and weights for the first set of points.
     w1_jac : array-lke, shape (n_grads, n_pts,)
         The array of weight gradients for the first set of points.
+    mask : array-like, shape(n_pts,)
+        A boolean array with `True` for points to be counted and `False` for points
+        to be ignored. Generally used to mask out zero weights. Passed as a
+        parameter to avoid copying masked data with each kernel call.
     rpbins_squared : array-like, shape (n_rpbins+1,)
         Array of the squared bin edges in the `rp` direction. Note that
         this array is one longer than the number of bins in `rp` direction.
@@ -171,6 +176,7 @@ def wprp_serial_cuda(
 
     _count_weighted_pairs_rppi_with_derivs_periodic_cuda[blocks, threads](
         x1, y1, z1, w1, w1_jac,
+        mask,
         _rpbins_squared,
         n_pi,
         result,
@@ -186,13 +192,12 @@ def wprp_serial_cuda(
         res = result.copy_to_host().reshape((n_rp, n_pi))
         res_grad = result_grad.copy_to_host().reshape((n_grads, n_rp, n_pi))
 
-    wgt_mask = w1 > 0
     sums = xp.zeros(2 + 2*n_grads, dtype=xp.float64)
-    sums[0] = xp.sum(w1[wgt_mask])
-    sums[1] = xp.sum(w1[wgt_mask]**2)
+    sums[0] = xp.sum(w1[mask])
+    sums[1] = xp.sum(w1[mask]**2)
     for g in range(n_grads):
-        sums[2+g] = xp.sum(w1[wgt_mask] * w1_jac[g, wgt_mask])
-        sums[2+n_grads+g] = xp.sum(w1_jac[g, wgt_mask])
+        sums[2+g] = xp.sum(w1[mask] * w1_jac[g, mask])
+        sums[2+n_grads+g] = xp.sum(w1_jac[g, mask])
 
     # let's bring everything back to cpu/numpy
     if can_cupy:
@@ -304,7 +309,7 @@ def _sum_at_ind_mask(w1, w2, mask, res, atind, ind):
 # for the wprp computation to be split
 @cuda.jit(fastmath=False)
 def _count_weighted_pairs_rppi_with_derivs_cuda(
-    x1, y1, z1, w1, dw1, inside_subvol, rpbins_squared, n_pi,
+    x1, y1, z1, w1, dw1, mask, inside_subvol, rpbins_squared, n_pi,
     result, result_grad,
     start_idx, end_idx
 ):
@@ -326,14 +331,14 @@ def _count_weighted_pairs_rppi_with_derivs_cuda(
     # this happens at two points on the real line for a smooth triweight
     # kernel, so hopefully we can ignore it
     for i in range(start, n1, stride):
-        if w1[i] > 0 and inside_subvol[i]:
+        if mask[i] and inside_subvol[i]:
             px = x1[i]
             py = y1[i]
             pz = z1[i]
             pw = w1[i]
 
             for j in range(n2):
-                if w1[j] > 0:
+                if mask[j]:
                     qx = x1[j]
                     qy = y1[j]
                     qz = z1[j]
@@ -382,6 +387,7 @@ def wprp_mpi_kernel_cuda(
     z1,
     w1,
     w1_jac,
+    mask,
     inside_subvol,
     rpbins_squared,
     zmax,
@@ -394,9 +400,15 @@ def wprp_mpi_kernel_cuda(
     Parameters
     ----------
     x1, y1, z1, w1 : array-like, shape (n_pts,)
-        The arrays of positions and weights for the first set of points.
+        The arrays of positions and weights for the first set of points. If using
+        multiple GPUs per rank these should be lists of cupy arrays that correspond
+        to the data on each device.
     w1_jac : array-lke, shape (n_grads, n_pts,)
         The array of weight gradients for the first set of points.
+    mask : array-like, shape(n_pts,)
+        A boolean array with `True` for points to be counted and `False` for points
+        to be ignored. Generally used to mask out zero weights. Passed as a
+        parameter to avoid copying masked data with each kernel call.
     inside_subvol : array-like, shape (n_pts,)
         A boolean array with `True` when the point is inside the subvolume
         and `False` otherwise.
@@ -419,15 +431,19 @@ def wprp_mpi_kernel_cuda(
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
     # check if cupy is available
-    # this is here bc github CI doesn't work with cupy currently
-    xp = cp.get_array_module(x1)
+    # this is here bc github CI doesn't work with cupy; no cupy cpu simulator
+    xp = cp.get_array_module(x1[0])
     can_cupy = xp is cp
 
     assert not xp.allclose(rpbins_squared[0], 0)
-    _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
+    _rpbins_squared = []
+    for d, _ in enumerate(rpbins_squared):
+        cp.cuda.Device(d).use()
+        _rpbins_squared.append(xp.concatenate([xp.array([0]),
+                                               rpbins_squared[d]], axis=0))
 
-    n_grads = w1_jac.shape[0]
-    n_rp = _rpbins_squared.shape[0] - 1
+    n_grads = w1_jac[0].shape[0]
+    n_rp = _rpbins_squared[0].shape[0] - 1
     n_pi = int(zmax)
 
     # use multiple GPUs if available
@@ -436,7 +452,7 @@ def wprp_mpi_kernel_cuda(
         n_devices = len(cuda.gpus)
 
     # split the data into chunks for each device
-    avg, rem = divmod(len(x1), n_devices)
+    avg, rem = divmod(len(x1[0]), n_devices)
     device_count = [avg + 1 if p < rem else avg for p in range(n_devices)]
     device_displ = [sum(device_count[:p]) for p in range(n_devices)]
     # lists of results for combination later
@@ -449,26 +465,17 @@ def wprp_mpi_kernel_cuda(
         start_idx = displ
         end_idx = displ + count
 
-        # copy data to relevant device if gpu(s) available
+        # data should already be copied to relevant gpus
         if can_cupy:
             cp.cuda.Device(d).use()
-        x1_d = xp.copy(x1)
-        y1_d = xp.copy(y1)
-        z1_d = xp.copy(z1)
-
-        w1_d = xp.copy(w1)
-        w1_jac_d = xp.copy(w1_jac)
-
-        _rpbins_squared_d = xp.copy(_rpbins_squared)
-        inside_subvol_d = xp.copy(inside_subvol)
 
         result_d = xp.zeros(n_rp * n_pi, dtype=np.float64)
         result_grad_d = xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
 
         # launch kernel
         _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
-            x1_d, y1_d, z1_d, w1_d, w1_jac_d, inside_subvol_d,
-            _rpbins_squared_d, n_pi,
+            x1[d], y1[d], z1[d], w1[d], w1_jac[d], mask[d], inside_subvol[d],
+            _rpbins_squared[d], n_pi,
             result_d, result_grad_d,
             start_idx, end_idx
         )
@@ -479,11 +486,11 @@ def wprp_mpi_kernel_cuda(
 
     # now add the distributed calculation
     if can_cupy:
-        cp.cuda.Device(n_devices-1).use()
-    res = xp.copy(result_all[-1])
-    res_grad = xp.copy(result_grad_all[-1])
-    for d in range(n_devices-1):
-        # let's be explicit moving data to one device
+        cp.cuda.Device(0).use()
+    res = xp.copy(result_all[0])
+    res_grad = xp.copy(result_grad_all[0])
+    for d in range(1, n_devices):
+        # let's be explicit about moving data to one device
         rd = xp.copy(result_all[d])
         rd_grad = xp.copy(result_grad_all[d])
 
@@ -493,17 +500,16 @@ def wprp_mpi_kernel_cuda(
     res = xp.reshape(res, (n_rp, n_pi))
     res_grad = xp.reshape(res_grad, (n_grads, n_rp, n_pi))
 
-    wgt_mask = w1_d > 0
-    inside_wgt_mask = inside_subvol_d & wgt_mask
+    inside_wgt_mask = inside_subvol[0] & mask[0]
     sums = xp.zeros(2 + 2*n_grads, dtype=xp.float64)
-    sums[0] = xp.sum(w1_d[inside_wgt_mask])
-    sums[1] = xp.sum(w1_d[inside_wgt_mask]**2)
+    sums[0] = xp.sum(w1[0][inside_wgt_mask])
+    sums[1] = xp.sum(w1[0][inside_wgt_mask]**2)
     for g in range(n_grads):
-        sums[2+g] = xp.sum(w1_d[inside_wgt_mask] * w1_jac_d[g, inside_wgt_mask])
-        sums[2+n_grads+g] = xp.sum(w1_jac_d[g, inside_wgt_mask])
+        sums[2+g] = xp.sum(w1[0][inside_wgt_mask] * w1_jac[0][g, inside_wgt_mask])
+        sums[2+n_grads+g] = xp.sum(w1_jac[0][g, inside_wgt_mask])
 
     # convert to differential
-    n_rp = rpbins_squared.shape[0] - 1
+    n_rp = rpbins_squared[0].shape[0] - 1
     res = res[1:] - res[:-1]
     res_grad = res_grad[:, 1:] - res_grad[:, :-1]
 
