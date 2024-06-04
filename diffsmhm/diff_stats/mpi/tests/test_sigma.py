@@ -3,7 +3,6 @@ from collections import OrderedDict
 from numpy.testing import assert_allclose
 import numpy as np
 import cupy as cp
-import jax.numpy as jnp
 import pytest
 
 try:
@@ -124,16 +123,20 @@ def test_sigma_mpi_comp_and_reduce_cpu():
     # stack gradients
     halo_dw1 = np.stack([halo_catalog["dw1_%d" % h] for h in range(n_pars)], axis=0)
 
+    wgt_mask = halo_catalog["w1"] > 0
+    dwgt_mask = np.sum(np.abs(halo_dw1), axis=0) > 0
+    full_mask = wgt_mask & dwgt_mask & halo_catalog["_inside_subvol"]
+
     sigma_mpi, sigma_grad_mpi = sigma_mpi_comp_and_reduce(
         xh=halo_catalog["x"],
         yh=halo_catalog["y"],
         zh=halo_catalog["z"],
         wh=halo_catalog["w1"],
         wh_jac=halo_dw1,
+        mask=full_mask,
         xp=particle_catalog["x"],
         yp=particle_catalog["y"],
         zp=particle_catalog["z"],
-        inside_subvol=halo_catalog["_inside_subvol"],
         rpbins=rpbins,
         zmax=zmax,
         boxsize=lbox,
@@ -146,6 +149,9 @@ def test_sigma_mpi_comp_and_reduce_cpu():
                                   [halo_cat_orig["dw1_%d" % h] for h in range(n_pars)],
                                   axis=0
                                 )
+        wgt_mask = halo_cat_orig["w1"] > 0
+        dwgt_mask = np.sum(np.abs(halo_dw1_orig), axis=0) > 0
+        full_mask = wgt_mask & dwgt_mask
 
         # call serial version to check mpi
         sigma_serial, sigma_grad_serial = sigma_serial_cpu(
@@ -154,6 +160,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
             zh=halo_cat_orig["z"],
             wh=halo_cat_orig["w1"],
             wh_jac=halo_dw1_orig,
+            mask=full_mask,
             xp=particle_cat_orig["x"],
             yp=particle_cat_orig["y"],
             zp=particle_cat_orig["z"],
@@ -181,6 +188,7 @@ def test_sigma_mpi_comp_and_reduce_cpu():
 @pytest.mark.mpi
 def test_sigma_mpi_comp_and_reduce_cuda():
     xp = get_array_backend()
+    can_cupy = xp is cp
 
     lbox = 250.0
     n_bins = 10
@@ -206,28 +214,62 @@ def test_sigma_mpi_comp_and_reduce_cuda():
     halo_catalog = _distribute_data(partition, lbox, halo_cat_orig, lov)
     particle_catalog = _distribute_data(partition, lbox, particle_cat_orig, lov)
 
-    halo_dw1 = np.stack([halo_catalog["dw1_%d" % h] for h in range(n_pars)], axis=0)
+    halo_catalog["dw1"] = np.stack(
+                                   [halo_catalog["dw1_%d" % h] for h in range(n_pars)],
+                                   axis=0
+    )
 
-    # make jax version that will be on gpu if available
-    halo_catalog_jax = OrderedDict()
+    wgt_mask = halo_catalog["w1"] > 0
+    dwgt_mask = np.sum(np.abs(halo_catalog["dw1"]), axis=0) > 0
+    full_mask = wgt_mask & dwgt_mask & halo_catalog["_inside_subvol"]
+
+    # if no devices, we're probalby testing on GitHub CI, so pretend there's one
+    if can_cupy:
+        n_devices = cp.cuda.runtime.getDeviceCount()
+    else:
+        n_devices = 1
+
+    # make gpu version of halo catalog (if gpu available)
+    halo_catalog_xp = OrderedDict()
     for k in halo_catalog.keys():
-        halo_catalog_jax[k] = jnp.copy(halo_catalog[k])
-    particle_catalog_jax = OrderedDict()
+        halo_catalog_xp[k] = []
+        for d in range(n_devices):
+            if can_cupy:
+                cp.cuda.Device(d).use()
+            halo_catalog_xp[k].append(xp.asarray(halo_catalog[k]))
+
+    halo_catalog_xp["mask"] = []
+    halo_catalog_xp["rpbins"] = []
+    for d in range(n_devices):
+        if can_cupy:
+            cp.cuda.Device(d).use()
+        halo_catalog_xp["mask"].append(xp.asarray(full_mask))
+        halo_catalog_xp["rpbins"].append(xp.asarray(rpbins))
+
+    # also for the particle catalog
+    particle_catalog_xp = OrderedDict()
     for k in particle_catalog.keys():
-        particle_catalog_jax[k] = jnp.copy(particle_catalog[k])
+        particle_catalog_xp[k] = []
+        for d in range(n_devices):
+            if can_cupy:
+                cp.cuda.Device(d).use()
+            particle_catalog_xp[k].append(xp.asarray(particle_catalog[k]))
+
+    if can_cupy:
+        cp.cuda.Device(0).use()
 
     sigma_mpi, sigma_grad_mpi = sigma_mpi_comp_and_reduce(
-        xh=xp.asarray(halo_catalog_jax["x"]).astype(xp.float64),
-        yh=xp.asarray(halo_catalog_jax["y"]).astype(xp.float64),
-        zh=xp.asarray(halo_catalog_jax["z"]).astype(xp.float64),
-        wh=xp.asarray(halo_catalog_jax["w1"]).astype(xp.float64),
-        wh_jac=xp.asarray(halo_dw1).astype(xp.float64),
-        xp=xp.asarray(particle_catalog_jax["x"]).astype(xp.float64),
-        yp=xp.asarray(particle_catalog_jax["y"]).astype(xp.float64),
-        zp=xp.asarray(particle_catalog_jax["z"]).astype(xp.float64),
-        inside_subvol=xp.asarray(halo_catalog_jax["_inside_subvol"]),
+        xh=halo_catalog_xp["x"],
+        yh=halo_catalog_xp["y"],
+        zh=halo_catalog_xp["z"],
+        wh=halo_catalog_xp["w1"],
+        wh_jac=halo_catalog_xp["dw1"],
+        mask=halo_catalog_xp["mask"],
+        xp=particle_catalog_xp["x"],
+        yp=particle_catalog_xp["y"],
+        zp=particle_catalog_xp["z"],
         boxsize=lbox,
-        rpbins=rpbins,
+        rpbins=halo_catalog_xp["rpbins"],
         zmax=zmax,
         kernel_func=sigma_mpi_kernel_cuda
     )
@@ -243,6 +285,9 @@ def test_sigma_mpi_comp_and_reduce_cuda():
                                   [halo_cat_orig["dw1_%d" % h] for h in range(n_pars)],
                                   axis=0
                                 )
+        wgt_mask = halo_cat_orig["w1"] > 0
+        dwgt_mask = np.sum(np.abs(halo_dw1_orig), axis=0) > 0
+        full_mask = wgt_mask & dwgt_mask
 
         # call serial version to check mpi
         sigma_serial, sigma_grad_serial = sigma_serial_cpu(
@@ -251,6 +296,7 @@ def test_sigma_mpi_comp_and_reduce_cuda():
             zh=halo_cat_orig["z"],
             wh=halo_cat_orig["w1"],
             wh_jac=halo_dw1_orig,
+            mask=full_mask,
             xp=particle_cat_orig["x"],
             yp=particle_cat_orig["y"],
             zp=particle_cat_orig["z"],
