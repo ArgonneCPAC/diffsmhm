@@ -438,7 +438,8 @@ def wprp_mpi_kernel_cuda(
     assert not xp.allclose(rpbins_squared[0], 0)
     _rpbins_squared = []
     for d, _ in enumerate(rpbins_squared):
-        cp.cuda.Device(d).use()
+        if can_cupy:
+            cp.cuda.Device(d).use()
         _rpbins_squared.append(xp.concatenate([xp.array([0]),
                                                rpbins_squared[d]], axis=0))
 
