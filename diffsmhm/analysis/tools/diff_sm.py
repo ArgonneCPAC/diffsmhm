@@ -22,6 +22,11 @@ from diffsmhm.diff_stats.cuda.tw_kernels import (
     tw_kern_mstar_bin_weights_and_derivs_cuda
 )
 
+# tmp
+import mpi4py.MPI as MPI
+COMM = MPI.COMM_WORLD
+RANK = COMM.Get_rank()
+
 
 # functions for differentiable stellar mass and scatter
 
@@ -295,6 +300,7 @@ def compute_weight_and_jac(
     dw : array-like, shape(n_params, n_gals)
         Gradients of bin weights.
     """
+
     # compute weights
     sm, sm_jac = compute_sm_and_jac(
                     logmpeak=logmpeak,
@@ -308,10 +314,10 @@ def compute_weight_and_jac(
     sigma, sigma_jac = compute_sm_sigma_and_jac(logmpeak=logmpeak, theta=theta)
 
     # Use DLPack to create zero-copy cupy references to Jax arrays
-    sm_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm,copy=False))
-    sm_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm_jac,copy=False)).T
-    sigma_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma,copy=False))
-    sigma_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma_jac,copy=False)).T
+    sm_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm, copy=False))
+    sm_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm_jac, copy=False)).T
+    sigma_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma, copy=False))
+    sigma_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma_jac, copy=False)).T
     w = cp.zeros(len(logmpeak), dtype=cp.float64)
     dw = cp.zeros((sm_jac.shape[1], len(logmpeak)), dtype=cp.float64)
 
