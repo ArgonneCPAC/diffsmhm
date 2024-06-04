@@ -24,8 +24,10 @@ def test_sigma_serial_cpu_smoke():
     xh = rng.uniform(0.0, boxsize, n_halos)
     yh = rng.uniform(0.0, boxsize, n_halos)
     zh = rng.uniform(0.0, boxsize, n_halos)
-    wh = rng.uniform(0.0, 1.0, n_halos)
-    dwh = rng.uniform(0.0, 1.0, (n_pars, n_halos))
+    wh = rng.uniform(-0.1, 1.0, n_halos)
+    dwh = rng.uniform(-0.1, 1.0, (n_pars, n_halos))
+
+    mask = (wh > 0) & (np.sum(np.abs(dwh), axis=0) > 0)
 
     n_particles = 1000
 
@@ -40,6 +42,7 @@ def test_sigma_serial_cpu_smoke():
     # do calculation
     sigma, sigma_grad = sigma_serial_cpu(
         xh=xh, yh=yh, zh=zh, wh=wh, wh_jac=dwh,
+        mask=mask,
         xp=xp, yp=yp, zp=zp,
         rpbins=bins, zmax=zmax, boxsize=boxsize
     )
@@ -69,6 +72,8 @@ def test_sigma_serial_cpu_derivs():
     n_bins = 5
     bins = np.linspace(0.0, 10.0, n_bins+1)
 
+    mask = (halos["w"] > 0) & (np.sum(np.abs(halos["w_jac"]), axis=0) > 0)
+
     parts_x = rng.uniform(0.0, boxsize, n_particles)
     parts_y = rng.uniform(0.0, boxsize, n_particles)
     parts_z = rng.uniform(0.0, boxsize, n_particles)
@@ -78,6 +83,7 @@ def test_sigma_serial_cpu_derivs():
         zh=halos["z"],
         wh=halos["w"],
         wh_jac=halos["w_jac"],
+        mask=mask,
         xp=parts_x,
         yp=parts_y,
         zp=parts_z,
@@ -95,6 +101,7 @@ def test_sigma_serial_cpu_derivs():
             zh=halos["z"],
             wh=w_p,
             wh_jac=halos["w_jac"],
+            mask=mask,
             xp=parts_x,
             yp=parts_y,
             zp=parts_z,
@@ -110,6 +117,7 @@ def test_sigma_serial_cpu_derivs():
             zh=halos["z"],
             wh=w_m,
             wh_jac=halos["w_jac"],
+            mask=mask,
             xp=parts_x,
             yp=parts_y,
             zp=parts_z,
