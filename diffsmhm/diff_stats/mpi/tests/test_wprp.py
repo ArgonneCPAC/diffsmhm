@@ -97,15 +97,15 @@ def test_wprp_mpi_comp_and_reduce_cpu():
         nbins=nbins,
     )
     halo_catalog = _distribute_data(halo_catalog, lbox, rpmax)
-    mask = halo_catalog["w1"][0] > 0
+    mask = halo_catalog["w1"] > 0
 
     _dw1 = np.stack([halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
     wprp, wprp_grad = wprp_mpi_comp_and_reduce(
-        x1=halo_catalog["x"].astype(np.float64),
-        y1=halo_catalog["y"].astype(np.float64),
-        z1=halo_catalog["z"].astype(np.float64),
-        w1=halo_catalog["w1"].astype(np.float64),
-        w1_jac=_dw1.astype(np.float64),
+        x1=halo_catalog["x"],
+        y1=halo_catalog["y"],
+        z1=halo_catalog["z"],
+        w1=halo_catalog["w1"],
+        w1_jac=_dw1,
         mask=mask,
         inside_subvol=halo_catalog["_inside_subvol"],
         rpbins_squared=rpbins_squared,
@@ -125,15 +125,18 @@ def test_wprp_mpi_comp_and_reduce_cpu():
             nbins=nbins,
         )
         dw1 = np.stack([orig_halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
+        mask = orig_halo_catalog["w1"] > 0
         (
+
             wprp_serial,
             wprp_grad_serial,
         ) = wprp_serial_cpu(
-            x1=orig_halo_catalog["x"].astype(np.float64),
-            y1=orig_halo_catalog["y"].astype(np.float64),
-            z1=orig_halo_catalog["z"].astype(np.float64),
-            w1=orig_halo_catalog["w1"].astype(np.float64),
+            x1=orig_halo_catalog["x"],
+            y1=orig_halo_catalog["y"],
+            z1=orig_halo_catalog["z"],
+            w1=orig_halo_catalog["w1"],
             w1_jac=dw1,
+            mask=mask,
             rpbins_squared=rpbins_squared,
             zmax=zmax,
             boxsize=lbox,
