@@ -134,42 +134,55 @@ def sigma_mpi_kernel_cpu(
 
     Parameters
     ---------
-    xh, yh, zh, wh : array-like, shape (n_halos,)
-        The arrays of positions and weights for the halos.
-    wh_jac : array-like, shape (n_grads, n_halos)
-        The weight gradients for the halos.
-    mask : array-like, shape (n_halos,)
-        A boolean array with `True` for halos to be included and `False` for halos
-        to be ignored. Generally used to mask out zero weights.
-    xp, yp, zp, : array-like, shape (n_particles,)
-        The arrays of positions for the particles.
-    rpbins : array-like, shape (n_rpbins+1,)
-        Array of bin edges in the `rp` direction. Note that this array is one
-        longer than the number of bins in the `rp` (radial) direction.
+    xh, yh, zh, wh : [array-like], shape [(n_halos,), (n_halos,), ...]
+        The lists of arrays of positions and weights for the halos.
+    wh_jac : [array-like], shape [(n_grads, n_halos), ...]
+        The list of arrays of weight gradients for the halos.
+    mask : [array-like], shape (n_halos,)
+        The list of boolean arrays with `True` for halos to be included and `False`
+        for halos to be ignored. Generally used to mask out zero weights.
+    xp, yp, zp, : [array-like], shape [(n_particles,), ...]
+        The list of arrays of positions for the particles.
+    rpbins : [array-like], shape [(n_rpbins+1,), ...]
+        The list of arrays of bin edges in the `rp` direction. Note that these arrays
+        are one longer than the number of bins in the `rp` (radial) direction. Also
+        note that is multiple arrays are passed in this list they must be identical.
     zmax : float
-        Maximum separation in the z direction. Particles with z distance less
-        than zmax from a given halo are included in surface density calculations
-        for that halo. Note this should be a whole number due to the unit
-        binning of Corrfunc.
+        The maximum separation in the `pi` (or typically `z`) direction. Output
+        bins in `z` direction are unit width, so make sure this is a whole number.
     boxsize: float
         The size of the total periodic volume.
 
     Returns
     -------
-    sigma : array-like, shape(n_rpbins,)
-        The surface density at each radial bin.
-    sigma_grad_1st : array-like, shape(n_grads, n_rpbins)
-        The first term of the surface density gradients at each radial bin.
+    sigma_mpi_data : named tuple of type SigmaMPIData
+        A named tuple of the data needed for the MPI reduction and final summary stats.
     """
+    # assert all rpbins are the same and start at 0
+    assert np.allclose(rpbins[0][0], 0)
+    for i,_ in enumerate(rpbins[:-1]):
+        assert np.allclose(rpbins[i], rpbins[i+1])
 
-    assert np.allclose(rpbins[0], 0)
+    # concatenate input arrays
+    xh_all = np.concatenate(xh)
+    yh_all = np.concatenate(yh)
+    zh_all = np.concatenate(zh)
+    wh_all = np.concatenate(wh)
+    wh_jac_all = np.concatenate(wh_jac, axis=1)
+    mask_all = np.concatenate(mask)
+
+    xp_all = np.concatenate(xp)
+    yp_all = np.concatenate(yp)
+    zp_all = np.concatenate(zp)
+
+    _rpbins = rpbins[0]
 
     # set up sizes
-    n_parts = len(xp)
+    n_parts = len(xp_all)
 
-    n_grads = wh_jac.shape[0]
+    n_grads = wh_jac_all.shape[0]
 
-    n_rpbins = len(rpbins) - 1
+    n_rpbins = len(_rpbins) - 1
 
     n_threads = int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False)))
 
@@ -180,10 +193,11 @@ def sigma_mpi_kernel_cpu(
         autocorr=False,
         nthreads=n_threads,
         pimax=zmax,
-        binfile=rpbins,
-        X1=xh[mask], Y1=yh[mask], Z1=zh[mask], weights1=wh[mask],
+        binfile=_rpbins,
+        X1=xh_all[mask_all], Y1=yh_all[mask_all], Z1=zh_all[mask_all],
+        weights1=wh_all[mask_all],
         periodic=False,
-        X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.float64),
+        X2=xp_all, Y2=yp_all, Z2=zp_all, weights2=np.ones(n_parts, dtype=np.float64),
         weight_type="pair_product"
     )
 
@@ -200,28 +214,29 @@ def sigma_mpi_kernel_cpu(
             autocorr=False,
             nthreads=n_threads,
             pimax=zmax,
-            binfile=rpbins,
-            X1=xh[mask], Y1=yh[mask], Z1=zh[mask], weights1=wh_jac[g, mask],
+            binfile=_rpbins,
+            X1=xh_all[mask_all], Y1=yh_all[mask_all], Z1=zh_all[mask_all],
+            weights1=wh_jac_all[g, mask_all],
             periodic=False,
-            X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.float64),
+            X2=xp_all, Y2=yp_all, Z2=zp_all, weights2=np.ones(n_parts, dtype=np.float64),
             weight_type="pair_product"
         )
         _dd_grad = (
             res_grad["weightavg"].reshape((n_rpbins, int(zmax))) *
             res["npairs"].reshape((n_rpbins, int(zmax)))
         ).astype(np.float64)
-        rads = np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
+        rads = np.pi * (_rpbins[1:]**2 - _rpbins[:-1]**2)
         sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1) / rads
 
     # do radial normalization
-    sigma_exp /= np.pi * (rpbins[1:]**2 - rpbins[:-1]**2)
+    sigma_exp /= np.pi * (_rpbins[1:]**2 - _rpbins[:-1]**2)
 
     # return
     return SigmaMPIData(
             sigma=sigma_exp,
             sigma_grad_1st=sigma_grad_1st,
-            w_tot=np.sum(wh[mask]),
-            w_jac_tot=np.sum(wh_jac[:, mask], axis=1)
+            w_tot=np.sum(wh_all[mask_all]),
+            w_jac_tot=np.sum(wh_jac_all[:, mask_all], axis=1)
     )
 
 
