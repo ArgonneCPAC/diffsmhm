@@ -127,17 +127,35 @@ def test_sigma_mpi_comp_and_reduce_cpu():
     dwgt_mask = np.sum(np.abs(halo_dw1), axis=0) > 0
     full_mask = wgt_mask & dwgt_mask & halo_catalog["_inside_subvol"]
 
+    # pass in lists
     sigma_mpi, sigma_grad_mpi = sigma_mpi_comp_and_reduce(
-        xh=halo_catalog["x"],
-        yh=halo_catalog["y"],
-        zh=halo_catalog["z"],
-        wh=halo_catalog["w1"],
-        wh_jac=halo_dw1,
-        mask=full_mask,
-        xp=particle_catalog["x"],
-        yp=particle_catalog["y"],
-        zp=particle_catalog["z"],
-        rpbins=rpbins,
+        xh=[halo_catalog["x"]],
+        yh=[halo_catalog["y"]],
+        zh=[halo_catalog["z"]],
+        wh=[halo_catalog["w1"]],
+        wh_jac=[halo_dw1],
+        mask=[full_mask],
+        xp=[particle_catalog["x"]],
+        yp=[particle_catalog["y"]],
+        zp=[particle_catalog["z"]],
+        rpbins=[rpbins],
+        zmax=zmax,
+        boxsize=lbox,
+        kernel_func=sigma_mpi_kernel_cpu
+    )
+
+    # also do a split calculation
+    sigma_mpi_split, sigma_grad_mpi_split = sigma_mpi_comp_and_reduce(
+        xh=[halo_catalog["x"][:100], halo_catalog["x"][100:]],
+        yh=[halo_catalog["y"][:100], halo_catalog["y"][100:]],
+        zh=[halo_catalog["z"][:100], halo_catalog["z"][100:]],
+        wh=[halo_catalog["w1"][:100], halo_catalog["w1"][100:]],
+        wh_jac=[halo_dw1[:, :100], halo_dw1[:, 100:]],
+        mask=[full_mask[:100], full_mask[100:]],
+        xp=[particle_catalog["x"][:1000], particle_catalog["x"][1000:]],
+        yp=[particle_catalog["y"][:1000], particle_catalog["y"][1000:]],
+        zp=[particle_catalog["z"][:1000], particle_catalog["z"][1000:]],
+        rpbins=[rpbins, rpbins],
         zmax=zmax,
         boxsize=lbox,
         kernel_func=sigma_mpi_kernel_cpu
@@ -173,6 +191,8 @@ def test_sigma_mpi_comp_and_reduce_cpu():
         try:
             assert_allclose(sigma_mpi, sigma_serial)
             assert_allclose(sigma_grad_mpi, sigma_grad_serial)
+            assert_allclose(sigma_mpi_split, sigma_serial)
+            assert_allclose(sigma_grad_mpi_split, sigma_grad_serial)
         except AssertionError:
             ok = False
     else:
