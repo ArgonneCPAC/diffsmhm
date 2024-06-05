@@ -528,6 +528,7 @@ def wprp_mpi_kernel_cuda(
             w2_tot=np.atleast_1d(sums_np[1]),
             ww_jac_tot=sums_np[2:2+n_grads],
             w_jac_tot=sums_np[2+n_grads:2+2*n_grads],
+            rpbins_squared=cp.asnumpy(rpbins_squared[0])
         )
     else:
         return WprpMPIData(
@@ -537,4 +538,5 @@ def wprp_mpi_kernel_cuda(
             w2_tot=np.atleast_1d(sums[1]),
             ww_jac_tot=sums[2:2+n_grads],
             w_jac_tot=sums[2+n_grads:2+2*n_grads],
+            rpbins_squared=rpbins_squared[0]
         )
