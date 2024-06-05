@@ -257,4 +257,5 @@ def wprp_mpi_kernel_cpu(
         w2_tot=_w2_tot,
         ww_jac_tot=_wdw_tot,
         w_jac_tot=_dw_tot,
+        rpbins_squared=rpbins_squared
     )
