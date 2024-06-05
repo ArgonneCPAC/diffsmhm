@@ -105,25 +105,15 @@ def wprp_mpi_comp_and_reduce(
     with time_step("final post-processing"):
         # now do norm by RR and compute proper grad
         if RANK == 0:
-            # if need be convert some things to numpy from cupy
-            # CPU kernels dont take lists of arrays, so need to handle both cases
-            if isinstance(rpbins_squared, list):
-                try:
-                    rpbins_squared = np.array(rpbins_squared[0])
-                except TypeError:
-                    rpbins_squared = np.array(rpbins_squared[0].get())
-            else:
-                try:
-                    rpbins_squared = np.array(rpbins_squared)
-                except TypeError:
-                    rpbins_squared = np.array(rpbins_squared.get())
+            # have the kernel handle any device/host transfers
+            rpbins_sq = data.rpbins_squared
 
             n_eff = w_tot**2 / w2_tot
 
             # this is the volume of the shell
             n_pi = int(zmax)
             dpi = 1.0  # here to make the code clear, always true
-            volfac = np.pi * (rpbins_squared[1:] - rpbins_squared[:-1])
+            volfac = np.pi * (rpbins_sq[1:] - rpbins_sq[:-1])
             volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
 
             # finally get rr and drr
