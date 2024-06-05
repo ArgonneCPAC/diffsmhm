@@ -409,7 +409,7 @@ def sigma_mpi_kernel_cuda(
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
     # check if cupy is available
-    # bc github CI doesn't work with cupy currently
+    # bc cupy has no "simulation" mode to use on github CI
     qp = cp.get_array_module(xp[0])
     can_cupy = qp is cp
 
