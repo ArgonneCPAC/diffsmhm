@@ -97,7 +97,6 @@ def test_wprp_mpi_comp_and_reduce_cpu():
         nbins=nbins,
     )
     halo_catalog = _distribute_data(halo_catalog, lbox, rpmax)
-    mask = halo_catalog["w1"] > 0
 
     # pass in lists
     _dw1 = np.stack([halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
@@ -107,7 +106,6 @@ def test_wprp_mpi_comp_and_reduce_cpu():
         z1=[halo_catalog["z"]],
         w1=[halo_catalog["w1"]],
         w1_jac=[_dw1],
-        mask=[mask],
         inside_subvol=[halo_catalog["_inside_subvol"]],
         rpbins_squared=[rpbins_squared],
         zmax=zmax,
@@ -122,7 +120,6 @@ def test_wprp_mpi_comp_and_reduce_cpu():
         z1=[halo_catalog["z"][:100], halo_catalog["z"][100:]],
         w1=[halo_catalog["w1"][:100], halo_catalog["w1"][100:]],
         w1_jac=[_dw1[:, :100], _dw1[:, 100:]],
-        mask=[mask[:100], mask[100:]],
         inside_subvol=[halo_catalog["_inside_subvol"][:100],
                        halo_catalog["_inside_subvol"][100:]],
         rpbins_squared=[rpbins_squared, rpbins_squared],
@@ -142,7 +139,6 @@ def test_wprp_mpi_comp_and_reduce_cpu():
             nbins=nbins,
         )
         dw1 = np.stack([orig_halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
-        mask = orig_halo_catalog["w1"] > 0
         (
 
             wprp_serial,
@@ -153,7 +149,6 @@ def test_wprp_mpi_comp_and_reduce_cpu():
             z1=orig_halo_catalog["z"],
             w1=orig_halo_catalog["w1"],
             w1_jac=dw1,
-            mask=mask,
             rpbins_squared=rpbins_squared,
             zmax=zmax,
             boxsize=lbox,
@@ -227,15 +222,12 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     if can_cupy:
         cp.cuda.Device(0).use()
 
-    mask = halo_catalog_xp["w1"][0] > 0
     dw1 = xp.stack([halo_catalog_xp["dw1_%d" % g][0] for g in range(3)], axis=0)
-    halo_catalog_xp["mask"] = []
     halo_catalog_xp["dw1"] = []
     halo_catalog_xp["rpbins_squared"] = []
     for d in range(n_devices):
         if can_cupy:
             cp.cuda.Device(d).use()
-        halo_catalog_xp["mask"].append(xp.asarray(mask))
         halo_catalog_xp["dw1"].append(xp.asarray(dw1))
         halo_catalog_xp["rpbins_squared"].append(xp.asarray(rpbins_squared))
 
@@ -245,7 +237,6 @@ def test_wprp_mpi_comp_and_reduce_cuda():
         z1=halo_catalog_xp["z"],
         w1=halo_catalog_xp["w1"],
         w1_jac=halo_catalog_xp["dw1"],
-        mask=halo_catalog_xp["mask"],
         inside_subvol=halo_catalog_xp["_inside_subvol"],
         rpbins_squared=halo_catalog_xp["rpbins_squared"],
         zmax=zmax,
@@ -269,7 +260,6 @@ def test_wprp_mpi_comp_and_reduce_cuda():
             nbins=nbins,
         )
         dw1 = np.stack([orig_halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
-        mask = orig_halo_catalog["w1"] > 0
         (
             wprp_serial,
             wprp_grad_serial,
@@ -279,7 +269,6 @@ def test_wprp_mpi_comp_and_reduce_cuda():
             z1=orig_halo_catalog["z"].astype(np.float64),
             w1=orig_halo_catalog["w1"].astype(np.float64),
             w1_jac=dw1,
-            mask=mask,
             rpbins_squared=rpbins_squared_cpu,
             zmax=zmax,
             boxsize=lbox,
