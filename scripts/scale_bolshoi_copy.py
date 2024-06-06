@@ -24,7 +24,6 @@ except ImportError:
 
 from diffsmhm.loader import wrap_to_local_volume_inplace
 from diffsmhm.analysis.tools.diff_sm import compute_weight_and_jac
-from diffsmhm.galhalo_models.merging import _calculate_indx_to_deposit
 
 from diffsmhm.diff_stats.mpi.wprp import wprp_mpi_comp_and_reduce
 from diffsmhm.diff_stats.cuda.wprp import wprp_mpi_kernel_cuda
@@ -44,9 +43,8 @@ from diffsmhm.galhalo_models.sigmoid_quenching import (
 
 
 halo_file = "/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
-single_length = 250.0 # Mpc
-
-overload_length = 20.0 # Mpc
+single_length = 250.0
+overload_length = 20.0
 
 mass_bin_edges = np.array([9.8, 50.0], dtype=np.float64)
 
@@ -91,9 +89,9 @@ important_keys = [
     "logmpeak", "loghost_mpeak", "logvmax_frac", "halo_x", "halo_y", "halo_z",
     "x", "y", "z"
 ]
-host_mpeak_cut = 0.0 
+host_mpeak_cut = 0.0
 if RANK < n_copies**3:
-    # do load 
+    # do load
     halos = OrderedDict()
     with h5py.File(halo_file, "r") as hdf:
         _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
@@ -159,7 +157,7 @@ halos["_inside_subvol"] = halos["rank"] == RANK
 
 # wrap to volume
 center = single_length * n_copies * (
-    np.array(partition.extent) / 2.0 + 
+    np.array(partition.extent) / 2.0 +
     np.array(partition.origin)
 )
 
@@ -251,7 +249,7 @@ for _ in range(n_rep):
     )
 
 t1 = time.time()
-tavg = (t1 - t0)/ n_rep
+tavg = (t1 - t0) / n_rep
 
 if RANK == 0:
     print("N_RANKS:", N_RANKS,
