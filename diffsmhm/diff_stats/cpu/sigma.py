@@ -18,7 +18,7 @@ from diffsmhm.diff_stats.mpi.types import SigmaMPIData
 
 
 def sigma_serial_cpu(
-    *, xh, yh, zh, wh, wh_jac, mask, xp, yp, zp, rpbins, zmax, boxsize
+    *, xh, yh, zh, wh, wh_jac, xp, yp, zp, rpbins, zmax, boxsize
 ):
     """
     sigma_cpu_serial(...)
@@ -30,9 +30,6 @@ def sigma_serial_cpu(
         The arrays of positions and weights for the halos.
     wh_jac : array-like, shape(n_grads, n_pts)
         The array of weight gradients for the halos.
-    mask : array-like, shape (n_halos,)
-        A boolean array with `True` for halos to be included and `False` for halos
-        to be ignored. Generally used to mask out zero weights.
     xp, yp, zp : array-like, shape(n_pts,)
         The arrays of positions for the particles.
     rpbins : array-like, shape (n_rpbins+1,)
@@ -77,7 +74,8 @@ def sigma_serial_cpu(
         nthreads=n_threads,
         pimax=zmax,
         binfile=rpbins,
-        X1=xh[mask], Y1=yh[mask], Z1=zh[mask], weights1=wh[mask],
+        X1=xh, Y1=yh, Z1=zh,
+        weights1=wh,
         periodic=True, boxsize=boxsize,
         X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.float64),
         weight_type="pair_product"
@@ -101,7 +99,8 @@ def sigma_serial_cpu(
             nthreads=n_threads,
             pimax=zmax,
             binfile=rpbins,
-            X1=xh[mask], Y1=yh[mask], Z1=zh[mask], weights1=wh_jac[g, mask],
+            X1=xh, Y1=yh, Z1=zh,
+            weights1=wh_jac[g, :],
             periodic=True, boxsize=boxsize,
             X2=xp, Y2=yp, Z2=zp, weights2=np.ones(n_parts, dtype=np.float64),
             weight_type="pair_product"
@@ -113,7 +112,8 @@ def sigma_serial_cpu(
         sigma_grad_1st[g, :] = np.sum(_dd_grad, axis=1, dtype=np.float64) / rads
 
     # second term of sigma grad
-    grad_sum = np.sum(wh_jac, axis=1, dtype=np.float64).reshape(n_grads, 1)
+    grad_sum = np.sum(wh_jac, axis=1,
+                      dtype=np.float64).reshape(n_grads, 1)
     sigma_row = sigma_exp.reshape(1, n_rpbins)
     sigma_grad_2nd = np.matmul(grad_sum, sigma_row, dtype=np.float64)
 
@@ -126,7 +126,14 @@ def sigma_serial_cpu(
 
 
 def sigma_mpi_kernel_cpu(
-    *, xh, yh, zh, wh, wh_jac, mask, xp, yp, zp, rpbins, zmax, boxsize
+    *,
+    xh, yh, zh, wh,
+    wh_jac,
+    xp, yp, zp,
+    inside_subvol,
+    rpbins,
+    zmax,
+    boxsize
 ):
     """
     sigma_mpi_kernel_cpu(...)
@@ -134,15 +141,16 @@ def sigma_mpi_kernel_cpu(
 
     Parameters
     ---------
-    xh, yh, zh, wh : [array-like], shape [(n_halos,), (n_halos,), ...]
-        The lists of arrays of positions and weights for the halos.
+    xh, yh, zh, wh : [array-like], shape [(n_halos,), ...]
+        The lists of arrays of positions and weights for the halos. If multiple
+        arrays are passed in a list those arrays will be concatenated together.
     wh_jac : [array-like], shape [(n_grads, n_halos), ...]
         The list of arrays of weight gradients for the halos.
-    mask : [array-like], shape (n_halos,)
-        The list of boolean arrays with `True` for halos to be included and `False`
-        for halos to be ignored. Generally used to mask out zero weights.
     xp, yp, zp, : [array-like], shape [(n_particles,), ...]
         The list of arrays of positions for the particles.
+    inside_subvol : [array-like], shape [(n_halos,)
+        A boolean array with `True` when the halo is inside the subvolume
+        and `False` otherwise.
     rpbins : [array-like], shape [(n_rpbins+1,), ...]
         The list of arrays of bin edges in the `rp` direction. Note that these arrays
         are one longer than the number of bins in the `rp` (radial) direction. Also
@@ -169,11 +177,12 @@ def sigma_mpi_kernel_cpu(
     zh_all = np.concatenate(zh)
     wh_all = np.concatenate(wh)
     wh_jac_all = np.concatenate(wh_jac, axis=1)
-    mask_all = np.concatenate(mask)
 
     xp_all = np.concatenate(xp)
     yp_all = np.concatenate(yp)
     zp_all = np.concatenate(zp)
+
+    inside_subvol_all = np.concatenate(inside_subvol)
 
     _rpbins = rpbins[0]
 
@@ -194,8 +203,10 @@ def sigma_mpi_kernel_cpu(
         nthreads=n_threads,
         pimax=zmax,
         binfile=_rpbins,
-        X1=xh_all[mask_all], Y1=yh_all[mask_all], Z1=zh_all[mask_all],
-        weights1=wh_all[mask_all],
+        X1=xh_all[inside_subvol_all],
+        Y1=yh_all[inside_subvol_all],
+        Z1=zh_all[inside_subvol_all],
+        weights1=wh_all[inside_subvol_all],
         periodic=False,
         X2=xp_all, Y2=yp_all, Z2=zp_all, weights2=np.ones(n_parts, dtype=np.float64),
         weight_type="pair_product"
@@ -215,8 +226,10 @@ def sigma_mpi_kernel_cpu(
             nthreads=n_threads,
             pimax=zmax,
             binfile=_rpbins,
-            X1=xh_all[mask_all], Y1=yh_all[mask_all], Z1=zh_all[mask_all],
-            weights1=wh_jac_all[g, mask_all],
+            X1=xh_all[inside_subvol_all],
+            Y1=yh_all[inside_subvol_all],
+            Z1=zh_all[inside_subvol_all],
+            weights1=wh_jac_all[g, inside_subvol_all],
             periodic=False,
             X2=xp_all, Y2=yp_all, Z2=zp_all,
             weights2=np.ones(n_parts, dtype=np.float64),
@@ -236,8 +249,8 @@ def sigma_mpi_kernel_cpu(
     return SigmaMPIData(
             sigma=sigma_exp,
             sigma_grad_1st=sigma_grad_1st,
-            w_tot=np.sum(wh_all[mask_all]),
-            w_jac_tot=np.sum(wh_jac_all[:, mask_all], axis=1)
+            w_tot=np.sum(wh_all[inside_subvol_all]),
+            w_jac_tot=np.sum(wh_jac_all[:, inside_subvol_all], axis=1)
     )
 
 

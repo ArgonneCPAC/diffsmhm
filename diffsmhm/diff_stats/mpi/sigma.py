@@ -17,8 +17,8 @@ from diffsmhm.utils import time_step
 def sigma_mpi_comp_and_reduce(
     *,
     xh, yh, zh, wh, wh_jac,
-    mask,
     xp, yp, zp,
+    inside_subvol,
     rpbins,
     zmax,
     boxsize,
@@ -33,13 +33,11 @@ def sigma_mpi_comp_and_reduce(
         The arrays of positions and weights for the halos.
     wh_jac : array-like, shape (n_grads, n_pts,)
         The array of weight gradients for the halos.
-    mask : array-like, shape (n_halos,)
-        A boolean array with `True` for halos to be included and `False` for halos
-        to be ignored. Generally used to mask out zero weights and halos not in
-        a given subvolume. Passed as a parameter to avoid copying masked data
-        with each kernel call.
     xp, yp, zp : array-like, shape (n_pts,)
         The arrays of positions for the particles.
+    inside_subvol : array-like, shape (n_halos,)
+        A boolean array with `True` when the halo is inside the subvolume
+        and `False` otherwise.
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges. Note that this array is one longer than the
         number of bins in the 'rp' (radial) direction.
@@ -69,8 +67,8 @@ def sigma_mpi_comp_and_reduce(
         data = kernel_func(
             xh=xh, yh=yh, zh=zh, wh=wh,
             wh_jac=wh_jac,
-            mask=mask,
             xp=xp, yp=yp, zp=zp,
+            inside_subvol=inside_subvol,
             rpbins=rpbins,
             zmax=zmax,
             boxsize=boxsize

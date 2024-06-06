@@ -216,9 +216,9 @@ def _copy_periodic_points_3D(x, y, z, boxsize, buffer_length):
 def _count_particles(
     xh, yh, zh,
     wh, wh_jac,
-    mask,
     n_grads,
     xp, yp, zp,
+    inside_subvol,
     start_idx, end_idx,
     rpbins,
     zmax,
@@ -233,7 +233,7 @@ def _count_particles(
 
     # for each halo
     for i in range(start, n_halos, stride):
-        if mask[i]:
+        if wh[i] > 0 and inside_subvol[i]:
             # for each particle in specified range
             for j in range(start_idx, end_idx):
                 # ensure Z distance is within range
@@ -258,7 +258,6 @@ def sigma_serial_cuda(
     *,
     xh, yh, zh, wh,
     wh_jac,
-    mask,
     xp, yp, zp,
     rpbins,
     zmax,
@@ -276,10 +275,6 @@ def sigma_serial_cuda(
         The arrays of positions and weights for the halos.
     wh_jac : array-like, shape(n_grads, n_halos,)
         The array of weight gradients for the first set of points.
-    mask : array-like, shape (n_halos,)
-        A boolean array with `True` for halos to be included and `False` for halos
-        to be ignored. Generally used to mask out zero weights. Passed as a
-        parameter to avoid copying masked data with each kernel call.
     xp, yp, zp : array-like, shape (n_particles,)
         The arrays of positions for the particles.
     rpbins : array-like, shape (n_rpbins+1,)
@@ -328,9 +323,9 @@ def sigma_serial_cuda(
     # do the actual counting on GPU
     _count_particles[blocks, threads](
                                       xh, yh, zh, wh, wh_jac,
-                                      mask,
                                       n_grads,
                                       xp_p, yp_p, zp_p,
+                                      np.full(len(xh), True),
                                       0, len(xp_p),
                                       rpbins,
                                       zmax,
@@ -368,8 +363,8 @@ def sigma_mpi_kernel_cuda(
     *,
     xh, yh, zh, wh,
     wh_jac,
-    mask,
     xp, yp, zp,
+    inside_subvol,
     rpbins,
     zmax,
     boxsize,
@@ -386,12 +381,11 @@ def sigma_mpi_kernel_cuda(
         The arrays of positions and weights for the halos.
     wh_jac : array-like, shape (n_grads, n_halos,)
         The array of weight gradients for the first set of points.
-    mask : array-like, shape (n_halos,)
-        A boolean array with `True` for halos to be included and `False` for halos
-        to be ignored. Generally used to mask out zero weights. Passed as a
-        parameter to avoid copying masked data with each kernel call.
     xp, yp, zp : array-like, shape (n_particles,)
         The arrays of positions for the particles.
+    inside_subvol : array-like, shape (n_particles,)
+        A boolean array with `True` when the halo is inside the subvolume
+        and `False` otherwise.
     rpbins : array-like, shape (n_rpbins+1,)
         Array of radial bin edges, Note that this array is one longer than the
         number of bins in the 'rp' (xy radial) direction.
@@ -453,9 +447,9 @@ def sigma_mpi_kernel_cuda(
         _count_particles[blocks, threads](
                                             xh[d], yh[d], zh[d],
                                             wh[d], wh_jac[d],
-                                            mask[d],
                                             n_grads,
                                             xp[d], yp[d], zp[d],
+                                            inside_subvol[d],
                                             start_idx, end_idx,
                                             rpbins[d],
                                             zmax,
@@ -490,14 +484,14 @@ def sigma_mpi_kernel_cuda(
         return SigmaMPIData(
                 sigma=qp.asnumpy(sigma_exp.get()),
                 sigma_grad_1st=qp.asnumpy(sigma_grad_1st.get()),
-                w_tot=qp.asnumpy(qp.sum(wh[0][mask[0]])),
-                w_jac_tot=qp.asnumpy(qp.sum(wh_jac[0][:, mask[0]], axis=1))
+                w_tot=qp.asnumpy(qp.sum(wh[0][inside_subvol[0]])),
+                w_jac_tot=qp.asnumpy(qp.sum(wh_jac[0][:, inside_subvol[0]], axis=1))
         )
 
     else:
         return SigmaMPIData(
                 sigma=sigma_exp,
                 sigma_grad_1st=sigma_grad_1st,
-                w_tot=np.sum(wh[0][mask[0]]),
-                w_jac_tot=np.sum(wh_jac[0][:, mask[0]], axis=1)
+                w_tot=np.sum(wh[0]),
+                w_jac_tot=np.sum(wh_jac[0], axis=1)
         )
