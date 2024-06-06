@@ -492,6 +492,6 @@ def sigma_mpi_kernel_cuda(
         return SigmaMPIData(
                 sigma=sigma_exp,
                 sigma_grad_1st=sigma_grad_1st,
-                w_tot=np.sum(wh[0]),
-                w_jac_tot=np.sum(wh_jac[0], axis=1)
+                w_tot=np.sum(wh[0][inside_subvol[0]]),
+                w_jac_tot=np.sum(wh_jac[0][:, inside_subvol[0]], axis=1)
         )
