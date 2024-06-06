@@ -177,7 +177,7 @@ def wprp_mpi_kernel_cpu(
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
     # assert that all rpbins arrays are the same
-    for i,_ in enumerate(rpbins_squared[:-1]):
+    for i, _ in enumerate(rpbins_squared[:-1]):
         assert np.allclose(rpbins_squared[i], rpbins_squared[i+1])
 
     # concatenate input arrays

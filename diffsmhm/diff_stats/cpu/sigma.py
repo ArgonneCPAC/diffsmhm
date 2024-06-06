@@ -160,7 +160,7 @@ def sigma_mpi_kernel_cpu(
     """
     # assert all rpbins are the same and start at 0
     assert np.allclose(rpbins[0][0], 0)
-    for i,_ in enumerate(rpbins[:-1]):
+    for i, _ in enumerate(rpbins[:-1]):
         assert np.allclose(rpbins[i], rpbins[i+1])
 
     # concatenate input arrays
@@ -218,7 +218,8 @@ def sigma_mpi_kernel_cpu(
             X1=xh_all[mask_all], Y1=yh_all[mask_all], Z1=zh_all[mask_all],
             weights1=wh_jac_all[g, mask_all],
             periodic=False,
-            X2=xp_all, Y2=yp_all, Z2=zp_all, weights2=np.ones(n_parts, dtype=np.float64),
+            X2=xp_all, Y2=yp_all, Z2=zp_all,
+            weights2=np.ones(n_parts, dtype=np.float64),
             weight_type="pair_product"
         )
         _dd_grad = (
