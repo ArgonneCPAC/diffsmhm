@@ -401,7 +401,7 @@ def load_and_chop_data_bolshoi_planck(
             keymask.append(key in halos.keys())
         keymask = np.array(keymask)
         COMM.Bcast(keymask, root=0)
-        
+
     else:
         # check if need to find mmhid
         need_mmhid = None
