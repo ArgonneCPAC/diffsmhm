@@ -118,15 +118,12 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
                 else:
                     dt = "f8"
                 halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
-        print(halos.keys(), flush=True)
     else:
         halos = None
 
-    exit()
-
     # broadcast the dictionary to all ranks
     # this assumes we can fit the whole catalog on one rank, which is fine for bolshoi
-    data = COMM.bcast(halos, root=0)
+    halos = COMM.bcast(halos, root=0)
 
     # 1) Point independent hosts that share a sub with a larger host to that larger host
     # only consider subhalos with pid != upid
@@ -137,7 +134,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     pid_indices = np.where(np.isin(halos["halo_id"], pid_upid_diff))[0]
     pid_hosts_indices = np.intersect1d(host_indices, pid_indices)
 
-    # now each mpi rank determines it's chunk of the list of "pid hosts"
+    # each mpi rank determines it's chunk of the list of "pid hosts"
     avg, rem = divmod(len(pid_hosts_indices), N_RANKS)
     rank_count = [avg + 1 if p < rem else avg for p in range(N_RANKS)]
     displ = [sum(rank_count[:p]) for p in range(N_RANKS)]
@@ -401,7 +398,6 @@ def load_and_chop_data_bolshoi_planck(
         # check if need to find mmhid
         need_mmhid = None
         need_mmhid = COMM.bcast(need_mmhid, root=0)
-        print(RANK, need_mmhid, flush=True)
 
         if need_mmhid:
             _ = find_and_write_most_massive_hosts(halo_file, export=True)
