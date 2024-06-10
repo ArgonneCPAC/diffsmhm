@@ -445,8 +445,7 @@ def load_and_chop_data_bolshoi_planck(
     wrap_to_local_volume_inplace(halos["mmh_z"], center[2], box_length)
 
     # PARTICLE FILE
-
-    part_keys = ["x", "y", "z", "part_id"]
+    # part keys in order are x, y, z, part_id
 
     # load in particle file
     if RANK == 0:
