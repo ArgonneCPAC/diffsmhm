@@ -305,76 +305,97 @@ def load_and_chop_data_bolshoi_planck(
     """
 
     # HALO FILE
+
+    # note that the order here is important for the mpipartition
+    # all ranks ordered dicts must have the same key order
     important_keys = [
-        "x", "y", "z", "vx", "vy", "vz",
-        "upid", "halo_id",
-        "mpeak", "host_mpeak",
-        "vmax_frac",
-        "host_x", "host_y", "host_z", "host_dist",
-        "mmhid", "mmh_x", "mmh_y", "mmh_z",
-        "time_since_first_infall", "time_since_infall"
+        "halo_id", "host_dist", "host_mpeak",
+        "host_x", "host_y", "host_z",
+        "mmh_x", "mmh_y", "mmh_z", "mmhid",
+        "mpeak",
+        "time_since_first_infall", "time_since_infall",
+        "upid",
+        "vmax_frac", "vx", "vy", "vz",
+        "logmpeak", "loghost_mpeak", "logvmax_frac",
+        "halo_x", "halo_y", "halo_z",
+        "x", "y", "z"
     ]
 
-    # load in the halo file and make optional host mpeak cut
-    halos = OrderedDict()
-    # load data, then assign each rank a chunk pre dist/overload
-    with h5py.File(halo_file, "r") as hdf:
-        _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
-        for key in hdf.keys():
-            # only keep columns we want
-            if key not in important_keys:
-                continue
+    if RANK == 0:
+        # load in the halo file and make optional host mpeak cut
+        halos = OrderedDict()
+        # load data, then assign each rank a chunk pre dist/overload
+        with h5py.File(halo_file, "r") as hdf:
+            _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
+            for key in hdf.keys():
+                # only keep columns we want
+                if key not in important_keys:
+                    continue
 
-            # integer dtypes
+                # integer dtypes
+                if key in ("halo_id", "upid", "mmhid"):
+                    dt = "i8"
+                else:
+                    dt = "f8"
+                halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
+
+        # if mmhid not known, find it
+        if "mmhid" not in halos.keys():
+            need_mmhid = np.array([True])
+            COMM.Bcast(need_mmhid, root=0)
+
+            mmh_info = find_and_write_most_massive_hosts(halo_file, export=True)
+
+            halos["mmhid"] = mmh_info[0]
+
+            halos["mmh_x"] = mmh_info[1]
+            halos["mmh_y"] = mmh_info[2]
+            halos["mmh_z"] = mmh_info[3]
+        else:
+            need_mmhid = np.array([False])
+            COMM.Bcast(need_mmhid, root=0)
+
+        assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
+
+        #  Compute some logs once and for all
+        halos["logmpeak"] = np.log10(halos["mpeak"])
+        halos["loghost_mpeak"] = np.log10(halos["host_mpeak"])
+        halos["logvmax_frac"] = np.log10(halos["vmax_frac"])
+
+        # change "x"/"y"/"z" to "halo_x"/etc for clarity with mmh positions
+        halos["halo_x"] = halos["x"].copy()
+        halos["halo_y"] = halos["y"].copy()
+        halos["halo_z"] = halos["z"].copy()
+        del halos["x"]
+        del halos["y"]
+        del halos["z"]
+
+        # fix "out of bounds" halos using periodicty
+        for pos in ["halo_x", "halo_y", "halo_z", "mmh_x", "mmh_y", "mmh_z"]:
+            halos[pos][halos[pos] < 0] += box_length
+            halos[pos][halos[pos] > box_length] -= box_length
+
+        # need to set halos with mmhid==-1 to their own id for the overload
+        halos["mmhid"][halos["mmhid"] == -1] = halos["halo_id"][halos["mmhid"] == -1]
+    else:
+        # check if need to find mmhid
+        need_mmhid = np.array([True])
+        COMM.Bcast(need_mmhid, root=0)
+
+        if need_mmhid[0]:
+            _ = find_and_write_most_massive_hosts(halo_file, export=True)
+
+        halos = OrderedDict()
+        for key in important_keys:
             if key in ("halo_id", "upid", "mmhid"):
                 dt = "i8"
             else:
                 dt = "f8"
-            halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
-
-    # if mmhid not known, find it
-    if "mmhid" not in halos.keys():
-        mmh_info = find_and_write_most_massive_hosts(halo_file, export=True)
-
-        halos["mmhid"] = mmh_info[0]
-
-        halos["mmh_x"] = mmh_info[1]
-        halos["mmh_y"] = mmh_info[2]
-        halos["mmh_z"] = mmh_info[3]
-
-    # assign each rank a chunk
-    avg, rem = divmod(len(halos["halo_id"]), N_RANKS)
-    rank_count = [avg + 1 if p < rem else avg for p in range(N_RANKS)]
-    displ = [sum(rank_count[:p]) for p in range(N_RANKS)]
-
-    rank_count = rank_count[RANK]
-    displ = displ[RANK]
-
-    for k in halos.keys():
-        halos[k] = halos[k][displ:displ+rank_count]
-
-    assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
-
-    #  Compute some logs once and for all
-    halos["logmpeak"] = np.log10(halos["mpeak"])
-    halos["loghost_mpeak"] = np.log10(halos["host_mpeak"])
-    halos["logvmax_frac"] = np.log10(halos["vmax_frac"])
-
-    # change "x"/"y"/"z" to "halo_x"/etc for clarity with mmh positions
-    halos["halo_x"] = halos["x"].copy()
-    halos["halo_y"] = halos["y"].copy()
-    halos["halo_z"] = halos["z"].copy()
-    del halos["x"]
-    del halos["y"]
-    del halos["z"]
-
-    # fix "out of bounds" halos using periodicty
-    for pos in ["halo_x", "halo_y", "halo_z", "mmh_x", "mmh_y", "mmh_z"]:
-        halos[pos][halos[pos] < 0] += box_length
-        halos[pos][halos[pos] > box_length] -= box_length
-
-    # need to set halos with mmhid==-1 to their own id for the overload
-    halos["mmhid"][halos["mmhid"] == -1] = halos["halo_id"][halos["mmhid"] == -1]
+            halos[key] = np.array([], dtype=dt)
+        # mimic the operations we did to the rank 0 dict
+        del halos["x"]
+        del halos["y"]
+        del halos["z"]
 
     # use MPIPartition to distribute and overload
     partition = mpipartition.Partition()
@@ -408,24 +429,23 @@ def load_and_chop_data_bolshoi_planck(
 
     # PARTICLE FILE
 
+    part_keys = ["x", "y", "z", "part_id"]
+
     # load in particle file
-    parts = OrderedDict()
-    with h5py.File(part_file, "r") as hdf:
-        parts["x"] = hdf["data"]["x"][...].astype("f8")
-        parts["y"] = hdf["data"]["y"][...].astype("f8")
-        parts["z"] = hdf["data"]["z"][...].astype("f8")
-        parts["part_id"] = np.arange(len(parts["x"])).astype(np.int64)
-
-    # again assign each rank a chunk
-    avg, rem = divmod(len(parts["part_id"]), N_RANKS)
-    rank_count = [avg + 1 if p < rem else avg for p in range(N_RANKS)]
-    displ = [sum(rank_count[:p]) for p in range(N_RANKS)]
-
-    rank_count = rank_count[RANK]
-    displ = displ[RANK]
-
-    for key in parts.keys():
-        parts[key] = parts[key][displ:displ+rank_count]
+    if RANK == 0:
+        parts = OrderedDict()
+        with h5py.File(part_file, "r") as hdf:
+            parts["x"] = hdf["data"]["x"][...].astype("f8")
+            parts["y"] = hdf["data"]["y"][...].astype("f8")
+            parts["z"] = hdf["data"]["z"][...].astype("f8")
+            parts["part_id"] = np.arange(len(parts["x"])).astype(np.int64)
+    else:
+        parts = OrderedDict([
+                    ("x", np.array([], dtype=np.float64)),
+                    ("y", np.array([], dtype=np.float64)),
+                    ("z", np.array([], dtype=np.float64)),
+                    ("part_id", np.array([], dtype=np.int64))
+        ])
 
     # chop the particle catalog
     parts = mpipartition.distribute(partition, box_length, parts,
