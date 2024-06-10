@@ -92,24 +92,41 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
         distance between each halo and it's mmh
     """
     # note these are different from load_and_chop
-    important_keys = ["halo_id", "upid", "pid", "mpeak", "x", "y", "z",
-                      "host_x", "host_y", "host_z", "host_dist", "rvir"]
+    important_keys = [
+        "halo_id", "host_dist",
+        "host_x", "host_y", "host_z",
+        "mpeak",
+        "pid",
+        "rvir",
+        "upid",
+        "x", "y", "z",
+    ]
 
-    # load hdf5 data
-    halos = OrderedDict()
-    with h5py.File(halo_file, "r") as hdf:
-        _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
-        for key in hdf.keys():
-            # only keep the columns that we want
-            if key not in important_keys:
-                continue
+    # load hdf5 data as rank 0
+    if RANK == 0:
+        halos = OrderedDict()
+        with h5py.File(halo_file, "r") as hdf:
+            _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
+            for key in hdf.keys():
+                # only keep the columns that we want
+                if key not in important_keys:
+                    continue
 
-            # integer types
-            if key in ("halo_id", "upid", "pid"):
-                dt = "i8"
-            else:
-                dt = "f8"
-            halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
+                # integer types
+                if key in ("halo_id", "upid", "pid"):
+                    dt = "i8"
+                else:
+                    dt = "f8"
+                halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
+        print(halos.keys(), flush=True)
+    else:
+        halos = None
+
+    exit()
+
+    # broadcast the dictionary to all ranks
+    # this assumes we can fit the whole catalog on one rank, which is fine for bolshoi
+    data = COMM.bcast(halos, root=0)
 
     # 1) Point independent hosts that share a sub with a larger host to that larger host
     # only consider subhalos with pid != upid
@@ -215,7 +232,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     # mmhid
     mmhid_allsubs = np.empty(len(sub_indices), dtype="i8")
     mmhid_all = np.copy(upid_corr_all)
-    COMM.Allgatherv(mmhid_rank, mmhid_allsubs)
+    COMM.Gatherv(mmhid_rank, mmhid_allsubs, root=0)
 
     mmhid_all[sub_indices] = mmhid_allsubs
 
@@ -228,9 +245,9 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     mmh_y_all = np.copy(halos["host_y"])
     mmh_z_all = np.copy(halos["host_z"])
 
-    COMM.Allgatherv(mmh_x, mmh_x_allsubs)
-    COMM.Allgatherv(mmh_y, mmh_y_allsubs)
-    COMM.Allgatherv(mmh_z, mmh_z_allsubs)
+    COMM.Gatherv(mmh_x, mmh_x_allsubs, root=0)
+    COMM.Gatherv(mmh_y, mmh_y_allsubs, root=0)
+    COMM.Gatherv(mmh_z, mmh_z_allsubs, root=0)
 
     mmh_x_all[sub_indices] = mmh_x_allsubs
     mmh_y_all[sub_indices] = mmh_y_allsubs
@@ -246,7 +263,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     # mmh_dist
     mmh_dist_allsubs = np.empty(len(sub_indices), dtype="f8")
     mmh_dist_all = np.copy(halos["host_dist"])
-    COMM.Allgatherv(mmh_dist_rank, mmh_dist_allsubs)
+    COMM.Gatherv(mmh_dist_rank, mmh_dist_allsubs, root=0)
 
     mmh_dist_all[sub_indices] = mmh_dist_allsubs
 
@@ -274,7 +291,10 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
                 del f["mmh_dist"]
             f.create_dataset("mmh_dist", data=mmh_dist_all, dtype="f8")
 
-    return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
+    if RANK == 0:
+        return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
+    else:
+        return None, None, None, None, None
 
 
 def load_and_chop_data_bolshoi_planck(
@@ -341,8 +361,8 @@ def load_and_chop_data_bolshoi_planck(
 
         # if mmhid not known, find it
         if "mmhid" not in halos.keys():
-            need_mmhid = np.array([True])
-            COMM.Bcast(need_mmhid, root=0)
+            need_mmhid = True
+            COMM.bcast(need_mmhid, root=0)
 
             mmh_info = find_and_write_most_massive_hosts(halo_file, export=True)
 
@@ -352,8 +372,8 @@ def load_and_chop_data_bolshoi_planck(
             halos["mmh_y"] = mmh_info[2]
             halos["mmh_z"] = mmh_info[3]
         else:
-            need_mmhid = np.array([False])
-            COMM.Bcast(need_mmhid, root=0)
+            need_mmhid = False
+            COMM.bcast(need_mmhid, root=0)
 
         assert len((set(halos["halo_id"]))) == len(halos["halo_id"])
 
@@ -379,10 +399,11 @@ def load_and_chop_data_bolshoi_planck(
         halos["mmhid"][halos["mmhid"] == -1] = halos["halo_id"][halos["mmhid"] == -1]
     else:
         # check if need to find mmhid
-        need_mmhid = np.array([True])
-        COMM.Bcast(need_mmhid, root=0)
+        need_mmhid = None
+        need_mmhid = COMM.bcast(need_mmhid, root=0)
+        print(RANK, need_mmhid, flush=True)
 
-        if need_mmhid[0]:
+        if need_mmhid:
             _ = find_and_write_most_massive_hosts(halo_file, export=True)
 
         halos = OrderedDict()
