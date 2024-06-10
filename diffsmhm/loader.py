@@ -108,7 +108,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
             if key in ("halo_id", "upid", "pid"):
                 dt = "i8"
             else:
-                dt = "f4"
+                dt = "f8"
             halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
 
     # 1) Point independent hosts that share a sub with a larger host to that larger host
@@ -220,9 +220,9 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     mmhid_all[sub_indices] = mmhid_allsubs
 
     # mmh_x/y/z
-    mmh_x_allsubs = np.empty(len(sub_indices), dtype="f4")
-    mmh_y_allsubs = np.empty(len(sub_indices), dtype="f4")
-    mmh_z_allsubs = np.empty(len(sub_indices), dtype="f4")
+    mmh_x_allsubs = np.empty(len(sub_indices), dtype="f8")
+    mmh_y_allsubs = np.empty(len(sub_indices), dtype="f8")
+    mmh_z_allsubs = np.empty(len(sub_indices), dtype="f8")
 
     mmh_x_all = np.copy(halos["host_x"])
     mmh_y_all = np.copy(halos["host_y"])
@@ -244,7 +244,7 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
     )
 
     # mmh_dist
-    mmh_dist_allsubs = np.empty(len(sub_indices), dtype="f4")
+    mmh_dist_allsubs = np.empty(len(sub_indices), dtype="f8")
     mmh_dist_all = np.copy(halos["host_dist"])
     COMM.Allgatherv(mmh_dist_rank, mmh_dist_allsubs)
 
@@ -260,19 +260,19 @@ def find_and_write_most_massive_hosts(halo_file, host_mpeak_cut=0, export=True):
 
             if "mmh_x" in f.keys():
                 del f["mmh_x"]
-            f.create_dataset("mmh_x", data=mmh_x_all, dtype="f4")
+            f.create_dataset("mmh_x", data=mmh_x_all, dtype="f8")
 
             if "mmh_y" in f.keys():
                 del f["mmh_y"]
-            f.create_dataset("mmh_y", data=mmh_y_all, dtype="f4")
+            f.create_dataset("mmh_y", data=mmh_y_all, dtype="f8")
 
             if "mmh_z" in f.keys():
                 del f["mmh_z"]
-            f.create_dataset("mmh_z", data=mmh_z_all, dtype="f4")
+            f.create_dataset("mmh_z", data=mmh_z_all, dtype="f8")
 
             if "mmh_dist" in f.keys():
                 del f["mmh_dist"]
-            f.create_dataset("mmh_dist", data=mmh_dist_all, dtype="f4")
+            f.create_dataset("mmh_dist", data=mmh_dist_all, dtype="f8")
 
     return mmhid_all, mmh_x_all, mmh_y_all, mmh_z_all, mmh_dist_all
 
@@ -329,7 +329,7 @@ def load_and_chop_data_bolshoi_planck(
             if key in ("halo_id", "upid", "mmhid"):
                 dt = "i8"
             else:
-                dt = "f4"
+                dt = "f8"
             halos[key] = hdf[key][...][_host_mpeak_mask].astype(dt)
 
     # if mmhid not known, find it
@@ -411,9 +411,9 @@ def load_and_chop_data_bolshoi_planck(
     # load in particle file
     parts = OrderedDict()
     with h5py.File(part_file, "r") as hdf:
-        parts["x"] = hdf["data"]["x"][...].astype("f4")
-        parts["y"] = hdf["data"]["y"][...].astype("f4")
-        parts["z"] = hdf["data"]["z"][...].astype("f4")
+        parts["x"] = hdf["data"]["x"][...].astype("f8")
+        parts["y"] = hdf["data"]["y"][...].astype("f8")
+        parts["z"] = hdf["data"]["z"][...].astype("f8")
         parts["part_id"] = np.arange(len(parts["x"])).astype(np.int64)
 
     # again assign each rank a chunk
