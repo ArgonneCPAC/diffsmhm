@@ -324,7 +324,7 @@ def load_and_chop_data_bolshoi_planck(
     # HALO FILE
 
     # note that the order here is important for the mpipartition
-    # all ranks ordered dicts must have the same key order
+    # this order is just how h5py loads in the keys
     important_keys = [
         "halo_id", "host_dist", "host_mpeak",
         "host_x", "host_y", "host_z",
@@ -394,25 +394,32 @@ def load_and_chop_data_bolshoi_planck(
 
         # need to set halos with mmhid==-1 to their own id for the overload
         halos["mmhid"][halos["mmhid"] == -1] = halos["halo_id"][halos["mmhid"] == -1]
+
+        # broadcast to other ranks which keys, if any, are missing
+        keymask = []
+        for key in important_keys:
+            keymask.append(key in halos.keys())
+        keymask = np.array(keymask)
+        COMM.Bcast(keymask, root=0)
+        
     else:
         # check if need to find mmhid
         need_mmhid = None
         need_mmhid = COMM.bcast(need_mmhid, root=0)
-
         if need_mmhid:
             _ = find_and_write_most_massive_hosts(halo_file, export=True)
 
+        # check if any keys should be ommitted
+        keymask = np.empty(len(important_keys), dtype=bool)
+        COMM.Bcast(keymask, root=0)
+
         halos = OrderedDict()
-        for key in important_keys:
+        for key in np.array(important_keys)[keymask]:
             if key in ("halo_id", "upid", "mmhid"):
                 dt = "i8"
             else:
                 dt = "f8"
             halos[key] = np.array([], dtype=dt)
-        # mimic the operations we did to the rank 0 dict
-        del halos["x"]
-        del halos["y"]
-        del halos["z"]
 
     # use MPIPartition to distribute and overload
     partition = mpipartition.Partition()
