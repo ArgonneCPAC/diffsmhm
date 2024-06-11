@@ -1,6 +1,8 @@
 from numba import vectorize, njit
 from numba import prange
 
+from jax import lax
+
 
 @vectorize(fastmath=True, nopython=True)
 def tw_cuml_kern_cpu(x, m, h):
