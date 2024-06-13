@@ -424,7 +424,8 @@ def wprp_mpi_kernel_cuda(
     xp = cp.get_array_module(x1[0])
     can_cupy = xp is cp
 
-    assert xp.allclose(rpbins_squared[0], 0)
+    for rpb in rpbins_squared:
+        assert xp.allclose(rpb[0], 0)
     """
     _rpbins_squared = []
     for d, _ in enumerate(rpbins_squared):
