@@ -44,6 +44,9 @@ def wprp_serial_cpu(
         The gradients of the projected correlation function.
     """
 
+    # check for first rpbin being zero for consistency with mpi kernels
+    assert np.allclose(rpbins_squared[0], 0)
+
     n_grads = w1_jac.shape[0]
     n_rp = rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
@@ -119,7 +122,7 @@ def wprp_serial_cpu(
 
     # this is the volume of the shell
     dpi = 1.0  # here to make the code clear, always true
-    volfac = np.pi * (rpbins_squared[1:] - rpbins_squared[:-1])
+    volfac = np.pi * (rpbins_squared[2:] - rpbins_squared[:-1])
     volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
 
     # finally get rr and drr
