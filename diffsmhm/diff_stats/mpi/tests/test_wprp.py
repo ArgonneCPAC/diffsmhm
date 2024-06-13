@@ -189,6 +189,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     rpmax = 15
     seed = 42
     rpbins_squared = xp.logspace(-1, xp.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared])
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500

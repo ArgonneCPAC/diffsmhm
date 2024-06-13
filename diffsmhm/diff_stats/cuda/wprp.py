@@ -424,16 +424,18 @@ def wprp_mpi_kernel_cuda(
     xp = cp.get_array_module(x1[0])
     can_cupy = xp is cp
 
-    assert not xp.allclose(rpbins_squared[0], 0)
+    assert xp.allclose(rpbins_squared[0], 0)
+    """
     _rpbins_squared = []
     for d, _ in enumerate(rpbins_squared):
         if can_cupy:
             cp.cuda.Device(d).use()
         _rpbins_squared.append(xp.concatenate([xp.array([0]),
                                                rpbins_squared[d]], axis=0))
+    """
 
     n_grads = w1_jac[0].shape[0]
-    n_rp = _rpbins_squared[0].shape[0] - 1
+    n_rp = rpbins_squared[0].shape[0] - 1
     n_pi = int(zmax)
 
     # use multiple GPUs if available
@@ -465,7 +467,7 @@ def wprp_mpi_kernel_cuda(
         # launch kernel
         _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
             x1[d], y1[d], z1[d], w1[d], w1_jac[d], inside_subvol[d],
-            _rpbins_squared[d], n_pi,
+            rpbins_squared[d], n_pi,
             result_d, result_grad_d,
             start_idx, end_idx
         )
@@ -498,7 +500,7 @@ def wprp_mpi_kernel_cuda(
         sums[2+n_grads+g] = xp.sum(w1_jac[0][g, inside_subvol[0]])
 
     # convert to differential
-    n_rp = rpbins_squared[0].shape[0] - 1
+    # n_rp = rpbins_squared[0].shape[0] - 1
     res = res[1:] - res[:-1]
     res_grad = res_grad[:, 1:] - res_grad[:, :-1]
 
@@ -516,7 +518,7 @@ def wprp_mpi_kernel_cuda(
             w2_tot=np.atleast_1d(sums_np[1]),
             ww_jac_tot=sums_np[2:2+n_grads],
             w_jac_tot=sums_np[2+n_grads:2+2*n_grads],
-            rpbins_squared=cp.asnumpy(rpbins_squared[0])
+            rpbins_squared=cp.asnumpy(rpbins_squared[0][1:])
         )
     else:
         return WprpMPIData(
@@ -526,5 +528,5 @@ def wprp_mpi_kernel_cuda(
             w2_tot=np.atleast_1d(sums[1]),
             ww_jac_tot=sums[2:2+n_grads],
             w_jac_tot=sums[2+n_grads:2+2*n_grads],
-            rpbins_squared=rpbins_squared[0]
+            rpbins_squared=rpbins_squared[0][1:]
         )
