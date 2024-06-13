@@ -189,7 +189,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     rpmax = 15
     seed = 42
     rpbins_squared = xp.logspace(-1, xp.log10(rpmax), nbins + 1) ** 2
-    rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared])
+    rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], dtype=xp.float64))
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
@@ -270,7 +270,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
             z1=orig_halo_catalog["z"].astype(np.float64),
             w1=orig_halo_catalog["w1"].astype(np.float64),
             w1_jac=dw1,
-            rpbins_squared=rpbins_squared_cpu,
+            rpbins_squared=rpbins_squared_cpu[1:],
             zmax=zmax,
             boxsize=lbox,
         )
