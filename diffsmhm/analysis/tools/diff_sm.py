@@ -262,7 +262,7 @@ def compute_weight_and_jac(
             mass_bin_high
     )
 
-    return w, dw
+    return w, dw.T
 
 
 # func for weights and weight gradients
