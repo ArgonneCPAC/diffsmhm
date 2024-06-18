@@ -1,5 +1,4 @@
 import numpy as np
-import cupy as cp
 import jax
 import jax.numpy as jnp
 
@@ -27,6 +26,7 @@ from diffsmhm.diff_stats.cpu.tw_kernels import (
 tw_bin_jax_kern_vmapped = jax.vmap(tw_bin_jax_kern, in_axes=[0, 0, None, None])
 
 # functions for differentiable stellar mass and scatter
+
 
 # munge theta into parameter areas
 def _munge_theta(theta):
@@ -161,7 +161,7 @@ def compute_quenching_prob_and_jac(
 # helper to take jax grads w.r.t theta only
 def _compute_weight(
     theta,
-    logmeak,
+    logmpeak,
     loghost_mpeak,
     log_vmax_by_vmpeak,
     upid,
@@ -183,17 +183,20 @@ def _compute_weight(
 
     # Use DLPack to create zero-copy cupy references to Jax arrays
     # don't need these with jax kernels but leaving them here rn for reference
-    #sm_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm, copy=False))
-    #sm_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm_jac, copy=False)).T
-    #sigma_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma, copy=False))
-    #sigma_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma_jac, copy=False)).T
-    #w = cp.zeros(len(logmpeak), dtype=cp.float64)
-    #dw = cp.zeros((sm_jac.shape[1], len(logmpeak)), dtype=cp.float64)
+    # sm_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm, copy=False))
+    # sm_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm_jac, copy=False)).T
+    # sigma_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma, copy=False))
+    # sigma_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma_jac, copy=False)).T
+    # w = cp.zeros(len(logmpeak), dtype=cp.float64)
+    # dw = cp.zeros((sm_jac.shape[1], len(logmpeak)), dtype=cp.float64)
 
     w = tw_bin_jax_kern_vmapped(sm, sigma, mass_bin_low, mass_bin_high)
 
+    return w
 
-_compute_weight_grad = jax.jacfwd(_get_weight, argnums=[0])
+
+_compute_weight_grad = jax.jacfwd(_compute_weight, argnums=[0])
+
 
 # func for weights and weight gradients
 def compute_weight_and_jac(
@@ -237,8 +240,8 @@ def compute_weight_and_jac(
     dw : array-like, shape(n_params, n_gals)
         Gradients of bin weights.
     """
-    w = _get_weight(
-            theta, 
+    w = _compute_weight(
+            theta,
             logmpeak,
             loghost_mpeak,
             log_vmax_by_vmpeak,
@@ -248,7 +251,7 @@ def compute_weight_and_jac(
             mass_bin_high
         )
 
-    dw = _get_weight_grad(
+    dw = _compute_weight_grad(
             theta,
             logmpeak,
             loghost_mpeak,
