@@ -18,15 +18,13 @@ from diffsmhm.galhalo_models.sigmoid_quenching import (
 from diffsmhm.galhalo_models.merging import (
     deposit_stellar_mass
 )
-from diffsmhm.diff_stats.cuda.tw_kernels import (
-    tw_kern_mstar_bin_weights_and_derivs_cuda
+from diffsmhm.diff_stats.cpu.tw_kernels import (
+    tw_bin_jax_kern
 )
 
-# tmp
-import mpi4py.MPI as MPI
-COMM = MPI.COMM_WORLD
-RANK = COMM.Get_rank()
 
+# some jax setup
+tw_bin_jax_kern_vmapped = jax.vmap(tw_bin_jax_kern, in_axes=[0, 0, None, None])
 
 # functions for differentiable stellar mass and scatter
 
@@ -51,7 +49,7 @@ def _net_stellar_mass(
     theta
 ):
     # munge params into arrays
-    smhm_params, _, disruption_params, _ = _munge_theta(theta)
+    smhm_params, _, disruption_params = _munge_theta(theta)
 
     # stellar mass
     stellar_mass = logsm_from_logmhalo_jax(logmpeak, smhm_params)
@@ -76,111 +74,15 @@ def _stellar_mass_sigma_wrapper(
     theta
 ):
     # munge params into arrays
-    _, smhm_sigma_params, _, _ = _munge_theta(theta)
+    _, smhm_sigma_params, _ = _munge_theta(theta)
 
     return logsm_sigma_from_logmhalo_jax(logmpeak, smhm_sigma_params)
 
 
 # gradients for net stellar mass and sigma stellar mass
-_net_stellar_mass_jacobian = jax.jacfwd(_net_stellar_mass,
-                                        argnums=5)
 
 _stellar_mass_sigma_jacobian = jax.jacfwd(_stellar_mass_sigma_wrapper,
                                           argnums=1)
-
-
-# helper function to return sm and grad
-def compute_sm_and_jac(
-    *,
-    logmpeak,
-    loghost_mpeak,
-    log_vmax_by_vmpeak,
-    upid,
-    idx_to_deposit,
-    theta
-):
-    """
-    Compute the stellar mass with merging and jacobian.
-
-    Parameters
-    ----------
-    logmpeak : array_like, shape (n_gals,)
-        The array of log10 mass for the halos.
-    loghost_mpeak : array_like, shape (n_gals,)
-        The array of log10 host mass for the halos.
-    log_vmax_by_vmpeak : array_like, shape (n_gals,)
-        The array of log10 maximum halo velocity divided by halo velocity at mpeak.
-    upid : array_like, shape (n_gals,)
-        The array of uber-parent IDs for the halos.
-    idx_to_deposit : array_like, shape (n_gals,)
-        Index of each halo's UPID in the above arrays.
-    theta : array_like, shape (n_params,)
-        Model parameters.
-
-    Returns
-    -------
-    sm : array_like, shape (n_gals,)
-        The array of log10 stellar mass for the halos.
-    sm_jac : array_like, shape (n_params, n_gals)
-        The gradients of the stellar masses.
-    """
-
-    sm = _net_stellar_mass(
-        logmpeak,
-        loghost_mpeak,
-        log_vmax_by_vmpeak,
-        upid,
-        idx_to_deposit,
-        theta
-    )
-
-    sm_jac = _net_stellar_mass_jacobian(
-        logmpeak,
-        loghost_mpeak,
-        log_vmax_by_vmpeak,
-        upid,
-        idx_to_deposit,
-        theta
-    )
-
-    return sm, sm_jac
-
-
-# helper function for sigma and grad for vectorized parameter input
-def compute_sm_sigma_and_jac(
-    *,
-    logmpeak,
-    theta
-):
-    """
-    Compute the spread in stellar mass and the jacobian.
-
-    Parameters
-    --------
-    logmpeak : array_like, shape (n_gals,)
-        The array of log10 mass for the halos.
-    theta : array_like, shape (n_params,)
-        Model parameters.
-
-    Returns
-    -------
-    sm_sigma : array_like, shape (n_gals)
-        The spread in stellar mass for each halo/galaxy.
-    sm_sigma_jac : array_like, shape (n_params, n_gals)
-        The gradients of the stellar mass spread.
-    """
-
-    sm_sigma = _stellar_mass_sigma_wrapper(
-                logmpeak,
-                theta
-    )
-
-    sm_sigma_jac = _stellar_mass_sigma_jacobian(
-                logmpeak,
-                theta
-    )
-
-    return sm_sigma, sm_sigma_jac
 
 
 # gradient of quenching prob
@@ -256,6 +158,43 @@ def compute_quenching_prob_and_jac(
     return qprob, dqprob
 
 
+# helper to take jax grads w.r.t theta only
+def _compute_weight(
+    theta,
+    logmeak,
+    loghost_mpeak,
+    log_vmax_by_vmpeak,
+    upid,
+    idx_to_deposit,
+    mass_bin_low,
+    mass_bin_high
+):
+    # compute weights
+    sm = _net_stellar_mass(
+        logmpeak,
+        loghost_mpeak,
+        log_vmax_by_vmpeak,
+        upid,
+        idx_to_deposit,
+        theta
+    )
+
+    sigma = _stellar_mass_sigma_wrapper(logmpeak=logmpeak, theta=theta)
+
+    # Use DLPack to create zero-copy cupy references to Jax arrays
+    # don't need these with jax kernels but leaving them here rn for reference
+    #sm_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm, copy=False))
+    #sm_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm_jac, copy=False)).T
+    #sigma_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma, copy=False))
+    #sigma_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma_jac, copy=False)).T
+    #w = cp.zeros(len(logmpeak), dtype=cp.float64)
+    #dw = cp.zeros((sm_jac.shape[1], len(logmpeak)), dtype=cp.float64)
+
+    w = tw_bin_jax_kern_vmapped(sm, sigma, mass_bin_low, mass_bin_high)
+
+
+_compute_weight_grad = jax.jacfwd(_get_weight, argnums=[0])
+
 # func for weights and weight gradients
 def compute_weight_and_jac(
     *,
@@ -267,8 +206,6 @@ def compute_weight_and_jac(
     mass_bin_low,
     mass_bin_high,
     theta,
-    threads=32,
-    blocks=512
 ):
     """
     Compute the bin weight and gradient for a given stellar mass bin
@@ -300,35 +237,26 @@ def compute_weight_and_jac(
     dw : array-like, shape(n_params, n_gals)
         Gradients of bin weights.
     """
+    w = _get_weight(
+            theta, 
+            logmpeak,
+            loghost_mpeak,
+            log_vmax_by_vmpeak,
+            upid,
+            idx_to_deposit,
+            mass_bin_low,
+            mass_bin_high
+        )
 
-    # compute weights
-    sm, sm_jac = compute_sm_and_jac(
-                    logmpeak=logmpeak,
-                    loghost_mpeak=loghost_mpeak,
-                    log_vmax_by_vmpeak=log_vmax_by_vmpeak,
-                    upid=upid,
-                    idx_to_deposit=idx_to_deposit,
-                    theta=theta
-    )
-
-    sigma, sigma_jac = compute_sm_sigma_and_jac(logmpeak=logmpeak, theta=theta)
-
-    # Use DLPack to create zero-copy cupy references to Jax arrays
-    sm_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm, copy=False))
-    sm_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm_jac, copy=False)).T
-    sigma_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma, copy=False))
-    sigma_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma_jac, copy=False)).T
-    w = cp.zeros(len(logmpeak), dtype=cp.float64)
-    dw = cp.zeros((sm_jac.shape[1], len(logmpeak)), dtype=cp.float64)
-
-    tw_kern_mstar_bin_weights_and_derivs_cuda[blocks, threads](
-                                        sm_cp,
-                                        sm_jac_cp,
-                                        sigma_cp,
-                                        sigma_jac_cp,
-                                        mass_bin_low, mass_bin_high,
-                                        w,
-                                        dw
+    dw = _get_weight_grad(
+            theta,
+            logmpeak,
+            loghost_mpeak,
+            log_vmax_by_vmpeak,
+            upid,
+            idx_to_deposit,
+            mass_bin_low,
+            mass_bin_high
     )
 
     return w, dw
