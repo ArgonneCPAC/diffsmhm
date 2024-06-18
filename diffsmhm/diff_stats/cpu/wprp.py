@@ -177,7 +177,8 @@ def wprp_mpi_kernel_cpu(
     wprp_mpi_data : named tuple of type WprpMPIData
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
-    # assert that all rpbins arrays are the same
+    # assert that all rpbins arrays are the same and start at 0.0
+    assert np.allclose(rpbins_squared[0][0], 0)
     for i, _ in enumerate(rpbins_squared[:-1]):
         assert np.allclose(rpbins_squared[i], rpbins_squared[i+1])
 
@@ -190,7 +191,7 @@ def wprp_mpi_kernel_cpu(
     inside_subvol_all = np.concatenate(inside_subvol)
 
     n_grads = w1_jac_all.shape[0]
-    n_rp = rpbins_squared[0].shape[0] - 1
+    n_rp = rpbins_squared[0].shape[0] - 2
     n_pi = int(zmax)
 
     # dd
@@ -198,7 +199,7 @@ def wprp_mpi_kernel_cpu(
         False,
         int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
         zmax,
-        np.sqrt(rpbins_squared[0]),
+        np.sqrt(rpbins_squared[0][1:]),
         x1_all[inside_subvol_all],
         y1_all[inside_subvol_all],
         z1_all[inside_subvol_all],
@@ -221,7 +222,7 @@ def wprp_mpi_kernel_cpu(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared[0]),
+            np.sqrt(rpbins_squared[0][1:]),
             x1_all[inside_subvol_all],
             y1_all[inside_subvol_all],
             z1_all[inside_subvol_all],
@@ -241,7 +242,7 @@ def wprp_mpi_kernel_cpu(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared[0]),
+            np.sqrt(rpbins_squared[0][1:]),
             x1_all[inside_subvol_all],
             y1_all[inside_subvol_all],
             z1_all[inside_subvol_all],
@@ -272,5 +273,5 @@ def wprp_mpi_kernel_cpu(
         w2_tot=_w2_tot,
         ww_jac_tot=_wdw_tot,
         w_jac_tot=_dw_tot,
-        rpbins_squared=rpbins_squared[0]
+        rpbins_squared=rpbins_squared[0][1:]
     )
