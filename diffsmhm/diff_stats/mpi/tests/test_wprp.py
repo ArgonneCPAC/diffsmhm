@@ -88,6 +88,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
     seed = 42
     npts = 50000
     rpbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = np.concatenate([np.array([0]), rpbins_squared], dtype=np.float64)
     halo_catalog = _gen_data(
         seed=seed,
         boxsize=lbox,
