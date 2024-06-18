@@ -152,7 +152,6 @@ def wprp_serial_cuda(
     can_cupy = xp is cp
 
     assert xp.allclose(rpbins_squared[0], 0)
-    # _rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], axis=0)
 
     n_grads = w1_jac.shape[0]
     n_rp = rpbins_squared.shape[0] - 1

@@ -49,7 +49,7 @@ def wprp_serial_cpu(
     assert np.allclose(rpbins_squared[0], 0)
 
     n_grads = w1_jac.shape[0]
-    n_rp = rpbins_squared.shape[0] - 2  # ?
+    n_rp = rpbins_squared.shape[0] - 2
     n_pi = int(zmax)
 
     # dd
@@ -126,9 +126,6 @@ def wprp_serial_cpu(
     dpi = 1.0  # here to make the code clear, always true
     volfac = np.pi * (rpbins_squared[2:] - rpbins_squared[1:-1])
     volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
-
-    # TMP
-    print("vr:", volratio.shape, flush=True)
 
     # finally get rr and drr
     rr, rr_grad = compute_rr_rrgrad(w1, w1_jac, volratio)
