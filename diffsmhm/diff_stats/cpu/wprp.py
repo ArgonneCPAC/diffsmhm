@@ -45,10 +45,11 @@ def wprp_serial_cpu(
     """
 
     # check for first rpbin being zero for consistency with mpi kernels
+    # even though we don't use the 0.0 in this kernel?
     assert np.allclose(rpbins_squared[0], 0)
 
     n_grads = w1_jac.shape[0]
-    n_rp = rpbins_squared.shape[0] - 1
+    n_rp = rpbins_squared.shape[0] - 2 #?
     n_pi = int(zmax)
 
     # dd
@@ -56,7 +57,7 @@ def wprp_serial_cpu(
         1,
         int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
         zmax,
-        np.sqrt(rpbins_squared),
+        np.sqrt(rpbins_squared[1:]),
         x1,
         y1,
         z1,
@@ -76,7 +77,7 @@ def wprp_serial_cpu(
             0,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared),
+            np.sqrt(rpbins_squared[1:]),
             x1,
             y1,
             z1,
@@ -99,7 +100,7 @@ def wprp_serial_cpu(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared),
+            np.sqrt(rpbins_squared[1:]),
             x1,
             y1,
             z1,
@@ -119,11 +120,15 @@ def wprp_serial_cpu(
         )
 
     # now do norm by RR and compute proper grad
+    # this is the part where we want to drop the 0 rpbin
 
     # this is the volume of the shell
     dpi = 1.0  # here to make the code clear, always true
-    volfac = np.pi * (rpbins_squared[2:] - rpbins_squared[:-1])
+    volfac = np.pi * (rpbins_squared[2:] - rpbins_squared[1:-1])
     volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
+
+    #TMP
+    print("vr:", volratio.shape, flush=True)
 
     # finally get rr and drr
     rr, rr_grad = compute_rr_rrgrad(w1, w1_jac, volratio)
