@@ -49,7 +49,7 @@ def _net_stellar_mass(
     theta
 ):
     # munge params into arrays
-    smhm_params, _, disruption_params = _munge_theta(theta)
+    smhm_params, _, disruption_params, _ = _munge_theta(theta)
 
     # stellar mass
     stellar_mass = logsm_from_logmhalo_jax(logmpeak, smhm_params)
@@ -74,7 +74,7 @@ def _stellar_mass_sigma_wrapper(
     theta
 ):
     # munge params into arrays
-    _, smhm_sigma_params, _ = _munge_theta(theta)
+    _, smhm_sigma_params, _, _ = _munge_theta(theta)
 
     return logsm_sigma_from_logmhalo_jax(logmpeak, smhm_sigma_params)
 
@@ -260,7 +260,7 @@ def compute_weight_and_jac(
             idx_to_deposit,
             mass_bin_low,
             mass_bin_high
-    )
+    )[0]
 
     return w, dw.T
 
