@@ -109,7 +109,6 @@ def test_compute_quenching_prob_and_jac_derivs():
                             theta=theta_m
         )
 
-        print(pind)
         grad = (qp_p - qp_m)/2.0/eps
         assert_allclose(qp_jac[pind, :], grad, rtol=1e-7, atol=1e-8)
         assert np.any(grad != 0)
@@ -273,7 +272,6 @@ def test_compute_weight_and_jac_quench_derivs():
                     theta=theta_m
         )
 
-        print(pind)
         grad_q = (wq_p - wq_m)/2.0/eps
         grad_nq = (wnq_p - wnq_m)/2.0/eps
         assert_allclose(dwq[pind, :], grad_q, rtol=1e-7, atol=1e-8)
