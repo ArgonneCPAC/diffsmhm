@@ -13,7 +13,6 @@ from diffsmhm.testing import gen_mstar_data
 @pytest.mark.mpi_skip
 def test_wprp_serial_cpu_smoke():
     data = gen_mstar_data(seed=42)
-    data["rp_bins"] = np.concatenate([np.array([0]), data["rp_bins"]], dtype=np.float64)
 
     nrp = data["rp_bins"].shape[0] - 2
     wprp, wprp_grad = wprp_serial_cpu(
@@ -38,7 +37,6 @@ def test_wprp_serial_cpu_smoke():
 @pytest.mark.mpi_skip
 def test_wprp_serial_cpu_derivs():
     data = gen_mstar_data(seed=42)
-    data["rp_bins"] = np.concatenate([np.array([0]), data["rp_bins"]], dtype=np.float64)
 
     wprp, wprp_grad = wprp_serial_cpu(
         x1=data["x"],

@@ -26,7 +26,6 @@ def test_wprp_serial_cuda_smoke():
     xp = get_array_backend()
 
     data = gen_mstar_data(seed=42)
-    data["rp_bins"] = np.concatenate([np.array([0]), data["rp_bins"]], dtype=np.float64)
 
     nrp = data["rp_bins"].shape[0] - 2
     wprp, wprp_grad = wprp_serial_cuda(
@@ -57,7 +56,6 @@ def test_wprp_serial_cuda():
     xp = get_array_backend()
 
     data = gen_mstar_data(seed=42)
-    data["rp_bins"] = np.concatenate([np.array([0]), data["rp_bins"]], dtype=np.float64)
 
     wprp_cuda, wprp_grad_cuda = wprp_serial_cuda(
         x1=xp.asarray(data["x"]),
