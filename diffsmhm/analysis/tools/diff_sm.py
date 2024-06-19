@@ -29,13 +29,21 @@ tw_bin_jax_kern_vmapped = jax.vmap(tw_bin_jax_kern, in_axes=[0, 0, None, None])
 
 
 # munge theta into parameter areas
-def _munge_theta(theta):
+def _munge_theta_quench(theta):
     smhm_params = theta[0:5]
     smhm_sigma_params = theta[5:9]
     disruption_params = theta[9:14]
     quenching_params = theta[14:]
 
     return smhm_params, smhm_sigma_params, disruption_params, quenching_params
+
+
+def _munge_theta(theta):
+    smhm_params = theta[0:5]
+    smhm_sigma_params = theta[5:9]
+    disruption_params = theta[9:14]
+
+    return smhm_params, smhm_sigma_params, disruption_params
 
 
 # Function to obtain net stellar mass
@@ -49,7 +57,7 @@ def _net_stellar_mass(
     theta
 ):
     # munge params into arrays
-    smhm_params, _, disruption_params, _ = _munge_theta(theta)
+    smhm_params, _, disruption_params = _munge_theta(theta)
 
     # stellar mass
     stellar_mass = logsm_from_logmhalo_jax(logmpeak, smhm_params)
@@ -74,15 +82,9 @@ def _stellar_mass_sigma_wrapper(
     theta
 ):
     # munge params into arrays
-    _, smhm_sigma_params, _, _ = _munge_theta(theta)
+    _, smhm_sigma_params, _ = _munge_theta(theta)
 
     return logsm_sigma_from_logmhalo_jax(logmpeak, smhm_sigma_params)
-
-
-# gradients for net stellar mass and sigma stellar mass
-
-_stellar_mass_sigma_jacobian = jax.jacfwd(_stellar_mass_sigma_wrapper,
-                                          argnums=1)
 
 
 # gradient of quenching prob
@@ -93,7 +95,7 @@ def _quenching_prob_wrapper(
     time_since_infall,
     theta
 ):
-    _, _, _, quenching_params = _munge_theta(theta)
+    _, _, _, quenching_params = _munge_theta_quench(theta)
 
     q = quenching_prob_jax(upid, logmpeak, loghost_mpeak,
                            time_since_infall, quenching_params)
