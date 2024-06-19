@@ -49,6 +49,9 @@ def wprp_serial_cpu(
     assert np.allclose(rpbins_squared[0], 0)
 
     n_grads = w1_jac.shape[0]
+
+    # -2 bc rpbins[1:] are the bin edges and we have rpbins[0] == 0
+    # so the number of actual bins is len(rpbins[1:])-1, or len(rpbins)-2
     n_rp = rpbins_squared.shape[0] - 2
     n_pi = int(zmax)
 
