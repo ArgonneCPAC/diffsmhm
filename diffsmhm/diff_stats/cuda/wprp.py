@@ -200,7 +200,6 @@ def wprp_serial_cuda(
         sums = np.array(sums.get())
 
     # convert to differential
-    # n_rp = rpbins_squared.shape[0] - 1
     dd = res[1:] - res[:-1]
     dd_grad = res_grad[:, 1:] - res_grad[:, :-1]
 
@@ -425,14 +424,6 @@ def wprp_mpi_kernel_cuda(
 
     for rpb in rpbins_squared:
         assert xp.allclose(rpb[0], 0)
-    """
-    _rpbins_squared = []
-    for d, _ in enumerate(rpbins_squared):
-        if can_cupy:
-            cp.cuda.Device(d).use()
-        _rpbins_squared.append(xp.concatenate([xp.array([0]),
-                                               rpbins_squared[d]], axis=0))
-    """
 
     n_grads = w1_jac[0].shape[0]
     n_rp = rpbins_squared[0].shape[0] - 1
@@ -500,7 +491,6 @@ def wprp_mpi_kernel_cuda(
         sums[2+n_grads+g] = xp.sum(w1_jac[0][g, inside_subvol[0]])
 
     # convert to differential
-    # n_rp = rpbins_squared[0].shape[0] - 1
     res = res[1:] - res[:-1]
     res_grad = res_grad[:, 1:] - res_grad[:, :-1]
 
