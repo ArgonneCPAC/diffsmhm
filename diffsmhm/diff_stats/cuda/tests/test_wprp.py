@@ -27,7 +27,10 @@ def test_wprp_serial_cuda_smoke():
 
     data = gen_mstar_data(seed=42)
 
-    nrp = data["rp_bins"].shape[0] - 1
+    # -2 below bc rpbins[1:] are the bin edges and we have rpbins[0] == 0
+    # so the number of actual bins is len(rpbins[1:])-1, or len(rpbins)-2
+    nrp = data["rp_bins"].shape[0] - 2
+
     wprp, wprp_grad = wprp_serial_cuda(
         x1=xp.asarray(data["x"]),
         y1=xp.asarray(data["y"]),

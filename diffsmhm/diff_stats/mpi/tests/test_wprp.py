@@ -5,7 +5,6 @@ from collections import OrderedDict
 from numpy.testing import assert_allclose
 import numpy as np
 import cupy as cp
-import jax.numpy as jnp
 import pytest
 
 try:
@@ -89,6 +88,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
     seed = 42
     npts = 50000
     rpbins_squared = np.logspace(-1, np.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = np.concatenate([np.array([0]), rpbins_squared], dtype=np.float64)
     halo_catalog = _gen_data(
         seed=seed,
         boxsize=lbox,
@@ -99,15 +99,31 @@ def test_wprp_mpi_comp_and_reduce_cpu():
     )
     halo_catalog = _distribute_data(halo_catalog, lbox, rpmax)
 
+    # pass in lists
     _dw1 = np.stack([halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
     wprp, wprp_grad = wprp_mpi_comp_and_reduce(
-        x1=halo_catalog["x"].astype(np.float64),
-        y1=halo_catalog["y"].astype(np.float64),
-        z1=halo_catalog["z"].astype(np.float64),
-        w1=halo_catalog["w1"].astype(np.float64),
-        w1_jac=_dw1.astype(np.float64),
-        inside_subvol=halo_catalog["_inside_subvol"],
-        rpbins_squared=rpbins_squared,
+        x1=[halo_catalog["x"]],
+        y1=[halo_catalog["y"]],
+        z1=[halo_catalog["z"]],
+        w1=[halo_catalog["w1"]],
+        w1_jac=[_dw1],
+        inside_subvol=[halo_catalog["_inside_subvol"]],
+        rpbins_squared=[rpbins_squared],
+        zmax=zmax,
+        boxsize=lbox,
+        kernel_func=wprp_mpi_kernel_cpu,
+    )
+
+    # also do a split calc
+    wprp_split, wprp_grad_split = wprp_mpi_comp_and_reduce(
+        x1=[halo_catalog["x"][:100], halo_catalog["x"][100:]],
+        y1=[halo_catalog["y"][:100], halo_catalog["y"][100:]],
+        z1=[halo_catalog["z"][:100], halo_catalog["z"][100:]],
+        w1=[halo_catalog["w1"][:100], halo_catalog["w1"][100:]],
+        w1_jac=[_dw1[:, :100], _dw1[:, 100:]],
+        inside_subvol=[halo_catalog["_inside_subvol"][:100],
+                       halo_catalog["_inside_subvol"][100:]],
+        rpbins_squared=[rpbins_squared, rpbins_squared],
         zmax=zmax,
         boxsize=lbox,
         kernel_func=wprp_mpi_kernel_cpu,
@@ -125,13 +141,14 @@ def test_wprp_mpi_comp_and_reduce_cpu():
         )
         dw1 = np.stack([orig_halo_catalog["dw1_%d" % g] for g in range(3)], axis=0)
         (
+
             wprp_serial,
             wprp_grad_serial,
         ) = wprp_serial_cpu(
-            x1=orig_halo_catalog["x"].astype(np.float64),
-            y1=orig_halo_catalog["y"].astype(np.float64),
-            z1=orig_halo_catalog["z"].astype(np.float64),
-            w1=orig_halo_catalog["w1"].astype(np.float64),
+            x1=orig_halo_catalog["x"],
+            y1=orig_halo_catalog["y"],
+            z1=orig_halo_catalog["z"],
+            w1=orig_halo_catalog["w1"],
             w1_jac=dw1,
             rpbins_squared=rpbins_squared,
             zmax=zmax,
@@ -141,6 +158,8 @@ def test_wprp_mpi_comp_and_reduce_cpu():
         try:
             assert_allclose(wprp, wprp_serial)
             assert_allclose(wprp_grad, wprp_grad_serial)
+            assert_allclose(wprp_split, wprp_serial)
+            assert_allclose(wprp_grad_split, wprp_grad_serial)
         except AssertionError:
             ok = False
     else:
@@ -163,6 +182,7 @@ def test_wprp_mpi_comp_and_reduce_cpu():
 )
 def test_wprp_mpi_comp_and_reduce_cuda():
     xp = get_array_backend()
+    can_cupy = xp is cp
 
     lbox = 120
     zmax = 12
@@ -170,6 +190,7 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     rpmax = 15
     seed = 42
     rpbins_squared = xp.logspace(-1, xp.log10(rpmax), nbins + 1) ** 2
+    rpbins_squared = xp.concatenate([xp.array([0]), rpbins_squared], dtype=xp.float64)
 
     if os.environ.get("NUMBA_ENABLE_CUDASIM", "0") == "1":
         npts = 500
@@ -185,20 +206,41 @@ def test_wprp_mpi_comp_and_reduce_cuda():
     )
     halo_catalog = _distribute_data(halo_catalog, lbox, rpmax)
 
-    # make jax version that will be on gpu is available
-    halo_catalog_jax = OrderedDict()
-    for k in halo_catalog.keys():
-        halo_catalog_jax[k] = jnp.copy(halo_catalog[k])
+    # if none, we're probably testing on github CI, so pretend there's one device
+    if can_cupy:
+        n_devices = cp.cuda.runtime.getDeviceCount()
+    else:
+        n_devices = 1
 
-    _dw1 = jnp.stack([halo_catalog_jax["dw1_%d" % g] for g in range(3)], axis=0)
+    # make gpu version of halo catalog if gpu is available
+    halo_catalog_xp = OrderedDict()
+    for k in halo_catalog.keys():
+        halo_catalog_xp[k] = []
+        for d in range(n_devices):
+            if can_cupy:
+                cp.cuda.Device(d).use()
+            halo_catalog_xp[k].append(xp.asarray(halo_catalog[k]))
+
+    if can_cupy:
+        cp.cuda.Device(0).use()
+
+    dw1 = xp.stack([halo_catalog_xp["dw1_%d" % g][0] for g in range(3)], axis=0)
+    halo_catalog_xp["dw1"] = []
+    halo_catalog_xp["rpbins_squared"] = []
+    for d in range(n_devices):
+        if can_cupy:
+            cp.cuda.Device(d).use()
+        halo_catalog_xp["dw1"].append(xp.asarray(dw1))
+        halo_catalog_xp["rpbins_squared"].append(xp.asarray(rpbins_squared))
+
     wprp, wprp_grad = wprp_mpi_comp_and_reduce(
-        x1=xp.asarray(halo_catalog_jax["x"]).astype(xp.float64),
-        y1=xp.asarray(halo_catalog_jax["y"]).astype(xp.float64),
-        z1=xp.asarray(halo_catalog_jax["z"]).astype(xp.float64),
-        w1=xp.asarray(halo_catalog_jax["w1"]).astype(xp.float64),
-        w1_jac=xp.asarray(_dw1).astype(xp.float64),
-        inside_subvol=xp.asarray(halo_catalog_jax["_inside_subvol"]),
-        rpbins_squared=rpbins_squared,
+        x1=halo_catalog_xp["x"],
+        y1=halo_catalog_xp["y"],
+        z1=halo_catalog_xp["z"],
+        w1=halo_catalog_xp["w1"],
+        w1_jac=halo_catalog_xp["dw1"],
+        inside_subvol=halo_catalog_xp["_inside_subvol"],
+        rpbins_squared=halo_catalog_xp["rpbins_squared"],
         zmax=zmax,
         boxsize=lbox,
         kernel_func=wprp_mpi_kernel_cuda,

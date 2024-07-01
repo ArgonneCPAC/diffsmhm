@@ -17,7 +17,7 @@ def get_1d_arrays(*args):
 
 
 def jax_sigmoid_exp(x, x0, k, ylo, yhi):
-    """Sigmoid function implemented w/ `jax.numpy.exp`.
+    """Sigmoid function implemented w/ `jax.nn.simgoid`.
 
     Parameters
     ----------
