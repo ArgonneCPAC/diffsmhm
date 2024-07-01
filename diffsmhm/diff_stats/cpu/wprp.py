@@ -44,8 +44,15 @@ def wprp_serial_cpu(
         The gradients of the projected correlation function.
     """
 
+    # check for first rpbin being zero for consistency with mpi kernels
+    # even though we don't use the 0.0 in this kernel?
+    assert np.allclose(rpbins_squared[0], 0)
+
     n_grads = w1_jac.shape[0]
-    n_rp = rpbins_squared.shape[0] - 1
+
+    # -2 bc rpbins[1:] are the bin edges and we have rpbins[0] == 0
+    # so the number of actual bins is len(rpbins[1:])-1, or len(rpbins)-2
+    n_rp = rpbins_squared.shape[0] - 2
     n_pi = int(zmax)
 
     # dd
@@ -53,7 +60,7 @@ def wprp_serial_cpu(
         1,
         int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
         zmax,
-        np.sqrt(rpbins_squared),
+        np.sqrt(rpbins_squared[1:]),
         x1,
         y1,
         z1,
@@ -73,7 +80,7 @@ def wprp_serial_cpu(
             0,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared),
+            np.sqrt(rpbins_squared[1:]),
             x1,
             y1,
             z1,
@@ -96,7 +103,7 @@ def wprp_serial_cpu(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared),
+            np.sqrt(rpbins_squared[1:]),
             x1,
             y1,
             z1,
@@ -116,10 +123,11 @@ def wprp_serial_cpu(
         )
 
     # now do norm by RR and compute proper grad
+    # this is the part where we want to drop the 0 rpbin
 
     # this is the volume of the shell
     dpi = 1.0  # here to make the code clear, always true
-    volfac = np.pi * (rpbins_squared[1:] - rpbins_squared[:-1])
+    volfac = np.pi * (rpbins_squared[2:] - rpbins_squared[1:-1])
     volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
 
     # finally get rr and drr
@@ -169,7 +177,8 @@ def wprp_mpi_kernel_cpu(
     wprp_mpi_data : named tuple of type WprpMPIData
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
-    # assert that all rpbins arrays are the same
+    # assert that all rpbins arrays are the same and start at 0.0
+    assert np.allclose(rpbins_squared[0][0], 0)
     for i, _ in enumerate(rpbins_squared[:-1]):
         assert np.allclose(rpbins_squared[i], rpbins_squared[i+1])
 
@@ -182,7 +191,7 @@ def wprp_mpi_kernel_cpu(
     inside_subvol_all = np.concatenate(inside_subvol)
 
     n_grads = w1_jac_all.shape[0]
-    n_rp = rpbins_squared[0].shape[0] - 1
+    n_rp = rpbins_squared[0].shape[0] - 2
     n_pi = int(zmax)
 
     # dd
@@ -190,7 +199,7 @@ def wprp_mpi_kernel_cpu(
         False,
         int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
         zmax,
-        np.sqrt(rpbins_squared[0]),
+        np.sqrt(rpbins_squared[0][1:]),
         x1_all[inside_subvol_all],
         y1_all[inside_subvol_all],
         z1_all[inside_subvol_all],
@@ -213,7 +222,7 @@ def wprp_mpi_kernel_cpu(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared[0]),
+            np.sqrt(rpbins_squared[0][1:]),
             x1_all[inside_subvol_all],
             y1_all[inside_subvol_all],
             z1_all[inside_subvol_all],
@@ -233,7 +242,7 @@ def wprp_mpi_kernel_cpu(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared[0]),
+            np.sqrt(rpbins_squared[0][1:]),
             x1_all[inside_subvol_all],
             y1_all[inside_subvol_all],
             z1_all[inside_subvol_all],
@@ -264,5 +273,5 @@ def wprp_mpi_kernel_cpu(
         w2_tot=_w2_tot,
         ww_jac_tot=_wdw_tot,
         w_jac_tot=_dw_tot,
-        rpbins_squared=rpbins_squared[0]
+        rpbins_squared=rpbins_squared[0][1:]
     )
