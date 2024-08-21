@@ -14,7 +14,7 @@ except ImportError:
     RANK = 0
     N_RANKS = 1
 
-from diffsmhm.analysis.tools.adam import adam
+from diffsmhm.analysis.adam import adam
 
 
 @pytest.mark.mpi_skip
