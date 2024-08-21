@@ -1,4 +1,3 @@
-#import numpy as np
 import jax
 import jax.numpy as jnp
 
@@ -266,8 +265,9 @@ def compute_weight_and_jac(
 
     return w, dw.T
 
-# test
+
 compute_weight_and_jac_jit = jax.jit(compute_weight_and_jac)
+
 
 # func for weights and weight gradients
 def compute_weight_and_jac_quench(

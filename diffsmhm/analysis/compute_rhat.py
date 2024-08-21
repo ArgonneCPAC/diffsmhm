@@ -5,7 +5,9 @@ from blackjax.diagnostics import potential_scale_reduction
 
 
 # define files to work over
-prefix = "/home/jwick/branches_diffsmhm/opt_wprp/diffsmhm/diffsmhm/analysis/scripts/output/"
+prefix = "
+    /home/jwick/branches_diffsmhm/opt_wprp/diffsmhm/diffsmhm/analysis/scripts/output/
+"
 position_files = [
     prefix+"positions_14.6_8.0_9.0_01.csv",
     prefix+"positions_14.6_8.0_9.0_02.csv",
