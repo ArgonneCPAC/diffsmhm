@@ -11,7 +11,7 @@ from diffsmhm.galhalo_models.sigmoid_quenching import (
     DEFAULT_PARAM_VALUES as quenching_params
 )
 
-from diffsmhm.analysis.tools.diff_sm_old import (
+from diffsmhm.analysis.diff_sm import (
     compute_quenching_prob_and_jac,
     compute_weight_and_jac,
     compute_weight_and_jac_quench
@@ -156,7 +156,7 @@ def test_compute_weight_and_jac_derivs():
     )
 
     # tmp
-    dw = np.array(dw.get(), dtype=np.float64)
+    dw = np.array(dw, dtype=np.float64)
 
     eps = 1e-6
     for pind in range(npars):
@@ -191,7 +191,7 @@ def test_compute_weight_and_jac_derivs():
         )
 
         grad = (w_p - w_m)/2.0/eps
-        assert_allclose(dw[pind, :], grad.get(), atol=1e-8)
+        assert_allclose(dw[pind, :], grad, atol=1e-8)
         assert np.any(grad != 0)
         assert np.any(dw[pind, :] != 0)
 
