@@ -135,12 +135,13 @@ mass_bin_edges = np.array([mass_bin_low, 100.0], dtype=np.float64)
 theta_init = np.array(list(smhm_params.values()) +
                       list(smhm_sigma_params.values()) +
                       list(disruption_params.values()), dtype=np.float64)
-
+"""
 theta_init = np.array([
     10.50000, -2.20148, 2.00000, 1.50000, 0.78571,
     0.10000, 0.10000, 11.00260, 0.19934,
     14.91979, 6.06973, 0.00000, -2.00000, 10.00000
 ], dtype=np.float64)
+"""
 
 n_params = len(theta_init)
 n_rpbins = len(rpbins) - 2
@@ -182,7 +183,7 @@ np.set_printoptions(precision=1, floatmode="maxprec_equal")
 
 def mse_wprp_all(theta_unbounded):
     theta_model = hmc_pos_to_model_pos(theta_unbounded, lower_bounds, upper_bounds)
-    theta_model = np.array(theta_model, dtype=np.float64)  # ensure not jax before broadcast
+    theta_model = np.array(theta_model, dtype=np.float64)  # ensure not jax for Bcast
     COMM.Bcast([theta_model, MPI.DOUBLE], root=0)
 
     w, dw = compute_weight_and_jac(
@@ -236,9 +237,9 @@ theta_opt = np.zeros_like(theta_init)
 if RANK == 0:
     theta_init_unbounded = model_pos_to_hmc_pos(theta_init, lower_bounds, upper_bounds)
     theta_opt, error_history = adam(
-                                #a=0.01,
-                                #b1=0.99,
-                                #b2=0.9999,
+                                a=0.01,
+                                b1=0.99,
+                                b2=0.9999,
                                 static_params=None,
                                 opt_params=theta_init_unbounded,
                                 err_func=mse_wprp_all,
@@ -367,6 +368,7 @@ wprp_final, _ = wprp_mpi_comp_and_reduce(
 
 # rank 0 makes the figure
 if RANK == 0:
+    print("wprp final:", wprp_final, flush=True)
     rpbins = cp.asnumpy(rpbins)[1:-1]
 
     # figure for wprp optimization
@@ -383,7 +385,7 @@ if RANK == 0:
 
     plt.xscale("log")
 
-    plt.savefig("fit_watson_all_wprp.png")
+    plt.savefig("figures/fit_watson_all_wprp.png")
 
     # figure for error history
     fig = plt.figure(figsize=(10, 8), facecolor="w")
@@ -393,4 +395,4 @@ if RANK == 0:
 
     plt.xlabel("iteration number")
     plt.ylabel("log error")
-    plt.savefig("fit_watson_all_error.png")
+    plt.savefig("figures/fit_watson_all_error.png")
