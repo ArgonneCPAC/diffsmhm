@@ -70,8 +70,6 @@ def adam(
 
         err_history.append(err)
 
-        savearray.append(np.concatenate([theta, [err], err_grad]))
-
         # rank 0 check loop condition
         cont = True
         if t > maxiter:
