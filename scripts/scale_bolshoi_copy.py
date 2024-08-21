@@ -9,8 +9,6 @@ import jax.numpy as jnp
 
 import h5py
 
-import mpipartition
-
 try:
     from mpi4py import MPI
 
@@ -21,6 +19,8 @@ except ImportError:
     COMM = None
     RANK = 0
     N_RANKS = 1
+
+import mpipartition
 
 from diffsmhm.loader import wrap_to_local_volume_inplace
 from diffsmhm.analysis.tools.diff_sm import compute_weight_and_jac
@@ -49,12 +49,12 @@ overload_length = 20.0
 mass_bin_edges = np.array([9.8, 50.0], dtype=np.float64)
 
 rpbins = np.logspace(-1, 1.3010, 16, dtype=np.float64)
+rpbins = np.concatenate([np.array([0.0]), rpbins])
 zmax = 20.0
 
 theta = np.array(list(smhm_params.values()) +
                  list(smhm_sigma_params.values()) +
-                 list(disruption_params.values()) +
-                 list(quenching_params.values()), dtype=np.float64)
+                 list(disruption_params.values()), dtype=np.float64)
 
 # 0) command line args
 
@@ -128,7 +128,7 @@ if RANK < n_copies**3:
     halos["halo_y"] += single_length*shift_amounts_per_rank[RANK, 1]
     halos["halo_z"] += single_length*shift_amounts_per_rank[RANK, 2]
 
-# halos not told to load need empty arrays for mpipartition
+# ranks not told to load need empty arrays for mpipartition
 else:
     halos = OrderedDict()
 
@@ -188,7 +188,6 @@ for d in range(n_devices):
 idx_to_deposit = np.random.randint(0, 1000, len(halos["halo_x"]))
 idx_to_deposit[:1000] = np.arange(1000)
 
-# weights
 w, dw = compute_weight_and_jac(
             logmpeak=halos_jax["logmpeak"],
             loghost_mpeak=halos_jax["loghost_mpeak"],
@@ -199,20 +198,31 @@ w, dw = compute_weight_and_jac(
             mass_bin_high=mass_bin_edges[1],
             theta=theta
 )
+# weights
+t0 = time.time()
+for _ in range(5):
+    w, dw = compute_weight_and_jac(
+                logmpeak=halos_jax["logmpeak"],
+                loghost_mpeak=halos_jax["loghost_mpeak"],
+                log_vmax_by_vmpeak=halos_jax["logvmax_frac"],
+                upid=halos_jax["upid"],
+                idx_to_deposit=idx_to_deposit,
+                mass_bin_low=mass_bin_edges[0],
+                mass_bin_high=mass_bin_edges[1],
+                theta=theta
+    )
+t1 = time.time()
+if RANK == 0:
+    print(t1-t0, flush=True)
 
-mask_wgt = w > 0.0
-mask_dwgt = cp.sum(cp.abs(dw), axis=0) > 0.0
-full_mask = mask_wgt & mask_dwgt
-
+"""
 # need our device lists too
 w_list = []
 dw_list = []
-full_mask_list = []
 for d in range(n_devices):
     cp.cuda.Device(d).use()
     w_list.append(cp.array(w))
     dw_list.append(cp.array(dw))
-    full_mask_list.append(cp.array(full_mask))
 
 # warmup wprp
 _, _ = wprp_mpi_comp_and_reduce(
@@ -221,7 +231,6 @@ _, _ = wprp_mpi_comp_and_reduce(
         z1=halos_cp["halo_z"],
         w1=w_list,
         w1_jac=dw_list,
-        mask=full_mask_list,
         inside_subvol=halos_cp["_inside_subvol"],
         rpbins_squared=halos_cp["rpbins_squared"],
         zmax=zmax,
@@ -230,23 +239,24 @@ _, _ = wprp_mpi_comp_and_reduce(
 )
 
 # rpwp
-n_rep = 10
+n_rep = 5
 tsum = 0.0
 t0 = time.time()
-for _ in range(n_rep):
+for i in range(n_rep):
     _, _ = wprp_mpi_comp_and_reduce(
             x1=halos_cp["halo_x"],
             y1=halos_cp["halo_y"],
             z1=halos_cp["halo_z"],
             w1=w_list,
             w1_jac=dw_list,
-            mask=full_mask_list,
             inside_subvol=halos_cp["_inside_subvol"],
             rpbins_squared=halos_cp["rpbins_squared"],
             zmax=zmax,
             boxsize=single_length*n_copies,
             kernel_func=wprp_mpi_kernel_cuda
     )
+    if RANK == 0:
+        print(i, flush=True)
 
 t1 = time.time()
 tavg = (t1 - t0) / n_rep
@@ -256,3 +266,4 @@ if RANK == 0:
           "N_DEV:", n_devices,
           "N_COPIES:", n_copies,
           "TIME:", tavg, flush=True)
+"""
