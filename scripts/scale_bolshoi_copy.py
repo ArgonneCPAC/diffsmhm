@@ -23,7 +23,7 @@ except ImportError:
 import mpipartition
 
 from diffsmhm.loader import wrap_to_local_volume_inplace
-from diffsmhm.analysis.tools.diff_sm import compute_weight_and_jac
+from diffsmhm.analysis.diff_sm import compute_weight_and_jac
 
 from diffsmhm.diff_stats.mpi.wprp import wprp_mpi_comp_and_reduce
 from diffsmhm.diff_stats.cuda.wprp import wprp_mpi_kernel_cuda
@@ -89,12 +89,12 @@ important_keys = [
     "logmpeak", "loghost_mpeak", "logvmax_frac", "halo_x", "halo_y", "halo_z",
     "x", "y", "z"
 ]
-host_mpeak_cut = 0.0
+hmcut = 0.0
 if RANK < n_copies**3:
     # do load
     halos = OrderedDict()
     with h5py.File(halo_file, "r") as hdf:
-        _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= host_mpeak_cut
+        _host_mpeak_mask = np.log10(hdf["host_mpeak"][...]) >= hmcut
         for key in hdf.keys():
             if key not in important_keys:
                 continue
@@ -215,7 +215,6 @@ t1 = time.time()
 if RANK == 0:
     print(t1-t0, flush=True)
 
-"""
 # need our device lists too
 w_list = []
 dw_list = []
@@ -266,4 +265,3 @@ if RANK == 0:
           "N_DEV:", n_devices,
           "N_COPIES:", n_copies,
           "TIME:", tavg, flush=True)
-"""
