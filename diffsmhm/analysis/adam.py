@@ -4,7 +4,6 @@ import time
 
 def adam(
     *,
-    static_params,
     opt_params,
     err_func,
     maxiter,
@@ -19,13 +18,10 @@ def adam(
 
     Parameters
     ---------
-    static_params : array-like
-        Parameters required for an error measurement but not to be optimized.
     opt_params : array-like, shape(n_params,)
         Parameters to optimize
     err_func : function
-        Function that takes in (static_params, opt_params) and returns
-        (error, error_jacobian).
+        Function that takes in `opt_params` and returns (error, error_jacobian).
     maxiter : int
         Maximum number of optimization loops to perform
     tmax : float, optional
@@ -41,9 +37,9 @@ def adam(
 
     Returns
     -------
-    theta : array-like, shape(n_params)
-        Optimized values for input opt_params.
-    error_history : array-like, shape(n_iter,)
+    theta : array-like, shape (n_params)
+        Optimized values for input `opt_params`.
+    error_history : array-like, shape (n_iter,)
         Error per iteration.
     """
 
