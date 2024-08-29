@@ -155,8 +155,8 @@ def wprp_serial_cuda(
 
     n_grads = w1_jac.shape[0]
 
-    # -2 below bc rpbins[1:] are the bin edges and we have rpbins[0] == 0
-    # so the number of actual bins is len(rpbins[1:])-1, or len(rpbins)-2
+    # n_rp here defines the size of the result arrays, not the returned wprp
+    # -1 bc we later convert to differential, which results in len(rpbins)-2
     n_rp = rpbins_squared.shape[0] - 1
     n_pi = int(zmax)
 
