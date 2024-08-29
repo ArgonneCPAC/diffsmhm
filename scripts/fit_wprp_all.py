@@ -280,7 +280,7 @@ if __name__ == "__main__":
                             w1_jac=dw_list,
                             inside_subvol=halos_cp["_inside_subvol"],
                             rpbins_squared=halos_cp["rpbins_squared"],
-                       /home/jwick/data/watson     zmax=zmax,
+                            zmax=zmax,
                             boxsize=box_length,
                             kernel_func=wprp_mpi_kernel_cuda
         )
@@ -307,7 +307,6 @@ if __name__ == "__main__":
                                     a=args.adam_a,
                                     b1=args.adam_b1,
                                     b2=args.adam_b2,
-                                    static_params=None,
                                     opt_params=theta_init_unbounded,
                                     err_func=mse_wprp_all,
                                     maxiter=10000,
