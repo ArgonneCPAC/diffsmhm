@@ -211,7 +211,7 @@ if __name__ == "__main__":
     n_rpbins = len(rpbins) - 2
     n_devices = jax.local_device_count()
 
-    hmcut = 13.3
+    hmcut = 0.0
     halos, _ = load_and_chop_data_bolshoi_planck(
                 particle_file,
                 halo_file,
