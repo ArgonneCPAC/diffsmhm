@@ -46,7 +46,6 @@ def test_adam():
 
     # do optimization
     theta_opt, err_history = adam(
-                                static_params=[],
                                 opt_params=theta_init,
                                 err_func=mse_test,
                                 a=0.1,
