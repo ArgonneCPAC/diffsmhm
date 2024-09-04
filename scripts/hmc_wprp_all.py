@@ -154,17 +154,17 @@ if __name__ == "__main__":
         default=0.0
     )
     parser.add_argument(
-        "--mass_bin_low",
+        "--mass-bin-low",
         type=float,
         default=10.6
     )
     parser.add_argument(
-        "--mass_bin_high",
+        "--mass-bin-high",
         type=float,
         default=100.0
     )
     parser.add_argument(
-        "-t", "--theta_init",
+        "-t", "--theta-init",
         type=str,
         default=None
     )
@@ -174,17 +174,17 @@ if __name__ == "__main__":
         default="./"
     )
     parser.add_argument(
-        "--prior_width",
+        "--prior-width",
         type=float,
         default=0.05
     )
     parser.add_argument(
-        "--hmc_niter",
+        "--hmc-niter",
         type=int,
         default=1000
     )
     parser.add_argument(
-        "--hmc_nwarmup",
+        "--hmc-nwarmup",
         type=int,
         default=500
     )
