@@ -30,15 +30,7 @@ from diffsmhm.analysis.diff_sm import compute_weight_and_jac
 from diffsmhm.diff_stats.mpi.wprp import wprp_mpi_comp_and_reduce
 from diffsmhm.diff_stats.cuda.wprp import wprp_mpi_kernel_cuda
 
-from diffsmhm.galhalo_models.sigmoid_smhm import (
-    DEFAULT_PARAM_VALUES as smhm_params
-)
-from diffsmhm.galhalo_models.sigmoid_smhm_sigma import (
-    DEFAULT_PARAM_VALUES as smhm_sigma_params
-)
-from diffsmhm.galhalo_models.sigmoid_disruption import (
-    DEFAULT_PARAM_VALUES as disruption_params
-)
+from diffsmhm.analysis.util import get_default_params
 
 
 if __name__ == "__main__":
@@ -84,9 +76,7 @@ if __name__ == "__main__":
 
     n_rep = args.n_iter
 
-    theta = np.array(list(smhm_params.values()) +
-                     list(smhm_sigma_params.values()) +
-                     list(disruption_params.values()), dtype=np.float64)
+    theta = get_default_params()
 
     # check for reasonable number of copies
     n_copies = args.n_copies
