@@ -1,6 +1,6 @@
 import numpy as np
 
-from diffsmhm.galhalo_models.sigmoid_disruption import (
+from diffsmhm.galhalo_models.sigmoid_smhm import (
     DEFAULT_PARAM_VALUES as smhm_params,
     PARAM_BOUNDS as smhm_bounds
 )
