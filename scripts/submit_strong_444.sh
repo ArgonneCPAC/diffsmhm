@@ -25,17 +25,15 @@ conda activate blanktest
 
 cd branches_diffsmhm/opt_wprp/diffsmhm/scripts
 
-#mpirun -np 1200 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-#mpirun -np 1100 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-#mpirun -np 1000 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-#mpirun -np  900 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-#mpirun -np  800 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-#mpirun -np  700 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-mpirun -np  600 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-mpirun -np  500 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-mpirun -np  400 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-mpirun -np  300 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-mpirun -np  200 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-mpirun -np  100 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-#mpirun -np   50 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
-#mpirun -np    8 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
+mpirun -np 1200 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np 1100 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np 1000 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  900 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  800 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  700 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  600 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  500 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  400 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  300 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  200 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
+mpirun -np  100 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4

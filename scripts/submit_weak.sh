@@ -25,7 +25,7 @@ conda activate diffsmhm
 
 cd branches_diffsmhm/opt_wprp/diffsmhm/scripts
 
-mpirun -np   28 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 1
-mpirun -np  224 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 2
-mpirun -np  756 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 3
-mpirun -np 1792 ./set_gpu_affinity.sh python scale_bolshoi_copy.py 4
+mpirun -np   28 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 1
+mpirun -np  224 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 2
+mpirun -np  756 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 3
+mpirun -np 1792 ./set_gpu_affinity.sh python scale_bolshoi_copy.py --n_copies 4
