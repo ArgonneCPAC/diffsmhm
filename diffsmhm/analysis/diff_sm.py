@@ -182,15 +182,6 @@ def _compute_weight(
 
     sigma = _stellar_mass_sigma_wrapper(logmpeak=logmpeak, theta=theta)
 
-    # Use DLPack to create zero-copy cupy references to Jax arrays
-    # don't need these with jax kernels but leaving them here rn for reference
-    # sm_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm, copy=False))
-    # sm_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sm_jac, copy=False)).T
-    # sigma_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma, copy=False))
-    # sigma_jac_cp = cp.from_dlpack(jax.dlpack.to_dlpack(sigma_jac, copy=False)).T
-    # w = cp.zeros(len(logmpeak), dtype=cp.float64)
-    # dw = cp.zeros((sm_jac.shape[1], len(logmpeak)), dtype=cp.float64)
-
     w = tw_bin_jax_kern_vmapped(sm, sigma, mass_bin_low, mass_bin_high)
 
     return w
