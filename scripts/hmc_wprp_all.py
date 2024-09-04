@@ -28,91 +28,22 @@ except ImportError:
     RANK = 0
     N_RANKS = 1
 
-from diffsmhm.galhalo_models.sigmoid_smhm import (
-    DEFAULT_PARAM_VALUES as smhm_params,
-    PARAM_BOUNDS as smhm_bounds
-)
-from diffsmhm.galhalo_models.sigmoid_smhm_sigma import (
-    DEFAULT_PARAM_VALUES as smhm_sigma_params,
-    PARAM_BOUNDS as smhm_sigma_bounds
-)
-from diffsmhm.galhalo_models.sigmoid_disruption import (
-    DEFAULT_PARAM_VALUES as disruption_params,
-    PARAM_BOUNDS as disruption_bounds
-)
-
 from diffsmhm.loader import load_and_chop_data_bolshoi_planck
 from diffsmhm.galhalo_models.merging import _calculate_indx_to_deposit
-
-from diffsmhm.analysis.diff_sm import compute_weight_and_jac
 
 from diffsmhm.diff_stats.cuda.wprp import wprp_mpi_kernel_cuda
 from diffsmhm.diff_stats.mpi.wprp import wprp_mpi_comp_and_reduce
 
+from diffsmhm.analysis.diff_sm import compute_weight_and_jac
 from diffsmhm.analysis.hmc_bounding import (
     hmc_pos_to_model_pos,
     logdens_model_to_logdens_hmc
 )
-
-
-# probalby should get moved to a utils file
-def _get_param_bounds():
-    lower_bounds = np.array([
-        smhm_bounds["smhm_logm_crit"][0],
-        smhm_bounds["smhm_ratio_logm_crit"][0],
-        smhm_bounds["smhm_k_logm"][0],
-        smhm_bounds["smhm_lowm_index"][0],
-        smhm_bounds["smhm_highm_index"][0],
-        smhm_sigma_bounds["smhm_sigma_low"][0],
-        smhm_sigma_bounds["smhm_sigma_high"][0],
-        smhm_sigma_bounds["smhm_sigma_logm_pivot"][0],
-        smhm_sigma_bounds["smhm_sigma_logm_width"][0],
-        disruption_bounds["satmerg_logmhost_crit"][0],
-        disruption_bounds["satmerg_logmhost_k"][0],
-        disruption_bounds["satmerg_logvr_crit_dwarfs"][0],
-        disruption_bounds["satmerg_logvr_crit_clusters"][0],
-        disruption_bounds["satmerg_logvr_k"][0],
-    ], dtype=np.float64)
-    upper_bounds = np.array([
-        smhm_bounds["smhm_logm_crit"][1],
-        smhm_bounds["smhm_ratio_logm_crit"][1],
-        smhm_bounds["smhm_k_logm"][1],
-        smhm_bounds["smhm_lowm_index"][1],
-        smhm_bounds["smhm_highm_index"][1],
-        smhm_sigma_bounds["smhm_sigma_low"][1],
-        smhm_sigma_bounds["smhm_sigma_high"][1],
-        smhm_sigma_bounds["smhm_sigma_logm_pivot"][1],
-        smhm_sigma_bounds["smhm_sigma_logm_width"][1],
-        disruption_bounds["satmerg_logmhost_crit"][1],
-        disruption_bounds["satmerg_logmhost_k"][1],
-        disruption_bounds["satmerg_logvr_crit_dwarfs"][1],
-        disruption_bounds["satmerg_logvr_crit_clusters"][1],
-        disruption_bounds["satmerg_logvr_k"][1],
-    ], dtype=np.float64)
-
-    return lower_bounds, upper_bounds
-
-
-# HMC logdensity fn; note only rank 0 will ever call this
-def logdensity(theta_hmc):
-    # transform HMC (unbounded space) params to model (bounded space) params
-    theta_model = hmc_pos_to_model_pos(theta_hmc, lower_bounds, upper_bounds)
-
-    # call function for error/potential
-    U = get_potential(theta_model)
-
-    # convert potential to logdensity
-    logdensity_model = -1.0 * U
-
-    # transform model logdensity to HMC logdensity
-    logdensity_hmc = logdens_model_to_logdens_hmc(
-                        logdensity_model,
-                        theta_hmc,
-                        lower_bounds,
-                        upper_bounds
-    )
-
-    return logdensity_hmc
+from diffsmhm.analysis.util import (
+    get_default_params,
+    get_param_bounds,
+    get_param_names
+)
 
 
 # this is what we pure_callback to, returns value and gradient
@@ -290,17 +221,9 @@ if __name__ == "__main__":
     wprp_err = wprp_info["wprp_err"]
     rpbins = wprp_info["rpbins"]
 
-    lower_bounds, upper_bounds = _get_param_bounds()
-    param_names = [
-        "smhm_logm_crit", "smhm_ratio_logm_crit", "smhm_k_logm", "smhm_lowm_index",
-        "smhm_highm_index",
-
-        "smhm_sigma_low", "smhm_sigma_high", "smhm_sigma_logm_pivot",
-        "smhm_sigma_logm_width",
-
-        "satmerg_logmhost_crit", "satmerg_logmhost_k", "satmerg_logvr_crit_dwarfs",
-        "satmerg_logvr_crit_clusters", "satmerg_logvr_k"
-    ]
+    theta_default = get_default_params()
+    lower_bounds, upper_bounds = get_param_bounds()
+    param_names = get_param_names()
 
     # load bolshoi data
     box_length = 250.0  # Mpc
@@ -310,9 +233,6 @@ if __name__ == "__main__":
     # jax weights prefer this as an array
     mass_bin_edges = np.array([args.mass_bin_low, args.mass_bin_high], dtype=np.float64)
 
-    theta_default = np.array(list(smhm_params.values()) +
-                             list(smhm_sigma_params.values()) +
-                             list(disruption_params.values()), dtype=np.float64)
     theta_init = np.copy(theta_default)
     if args.theta_init is not None:
         theta_init = np.load(args.theta_init)
@@ -351,7 +271,6 @@ if __name__ == "__main__":
         cp.cuda.Device(d).use()
         halos_cp["rpbins_squared"].append(cp.array(rpbins**2, dtype=cp.float64))
 
-
     # 2) HMC
     # defined inside main so we can use the default argument
     def model(
@@ -360,7 +279,7 @@ if __name__ == "__main__":
             upper_bounds=upper_bounds
     ):
         # priors on parameters
-        sigmas = (upper_bounds - lower_bounds)/100 # * args.prior_width
+        sigmas = (upper_bounds - lower_bounds) * args.prior_width
 
         smhm_0_dist = dist.Normal(theta_init[0], sigmas[0])
         smhm_0_dist.support = dist.constraints.interval(lower_bounds[0],

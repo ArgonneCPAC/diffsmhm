@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 from collections import OrderedDict
 
@@ -22,19 +21,6 @@ except ImportError:
     RANK = 0
     N_RANKS = 1
 
-from diffsmhm.galhalo_models.sigmoid_smhm import (
-    DEFAULT_PARAM_VALUES as smhm_params,
-    PARAM_BOUNDS as smhm_bounds
-)
-from diffsmhm.galhalo_models.sigmoid_smhm_sigma import (
-    DEFAULT_PARAM_VALUES as smhm_sigma_params,
-    PARAM_BOUNDS as smhm_sigma_bounds
-)
-from diffsmhm.galhalo_models.sigmoid_disruption import (
-    DEFAULT_PARAM_VALUES as disruption_params,
-    PARAM_BOUNDS as disruption_bounds
-)
-
 from diffsmhm.galhalo_models.merging import _calculate_indx_to_deposit
 from diffsmhm.loader import load_and_chop_data_bolshoi_planck
 
@@ -44,46 +30,13 @@ from diffsmhm.analysis.hmc_bounding import (
     hmc_pos_to_model_pos
 )
 from diffsmhm.analysis.adam import adam
+from diffsmhm.analysis.util import (
+    get_default_params,
+    get_param_bounds
+)
 
 from diffsmhm.diff_stats.mpi.wprp import wprp_mpi_comp_and_reduce
 from diffsmhm.diff_stats.cuda.wprp import wprp_mpi_kernel_cuda
-
-
-def _get_param_bounds():
-    lower_bounds = np.array([
-        smhm_bounds["smhm_logm_crit"][0],
-        smhm_bounds["smhm_ratio_logm_crit"][0],
-        smhm_bounds["smhm_k_logm"][0],
-        smhm_bounds["smhm_lowm_index"][0],
-        smhm_bounds["smhm_highm_index"][0],
-        smhm_sigma_bounds["smhm_sigma_low"][0],
-        smhm_sigma_bounds["smhm_sigma_high"][0],
-        smhm_sigma_bounds["smhm_sigma_logm_pivot"][0],
-        smhm_sigma_bounds["smhm_sigma_logm_width"][0],
-        disruption_bounds["satmerg_logmhost_crit"][0],
-        disruption_bounds["satmerg_logmhost_k"][0],
-        disruption_bounds["satmerg_logvr_crit_dwarfs"][0],
-        disruption_bounds["satmerg_logvr_crit_clusters"][0],
-        disruption_bounds["satmerg_logvr_k"][0],
-    ], dtype=np.float64)
-    upper_bounds = np.array([
-        smhm_bounds["smhm_logm_crit"][1],
-        smhm_bounds["smhm_ratio_logm_crit"][1],
-        smhm_bounds["smhm_k_logm"][1],
-        smhm_bounds["smhm_lowm_index"][1],
-        smhm_bounds["smhm_highm_index"][1],
-        smhm_sigma_bounds["smhm_sigma_low"][1],
-        smhm_sigma_bounds["smhm_sigma_high"][1],
-        smhm_sigma_bounds["smhm_sigma_logm_pivot"][1],
-        smhm_sigma_bounds["smhm_sigma_logm_width"][1],
-        disruption_bounds["satmerg_logmhost_crit"][1],
-        disruption_bounds["satmerg_logmhost_k"][1],
-        disruption_bounds["satmerg_logvr_crit_dwarfs"][1],
-        disruption_bounds["satmerg_logvr_crit_clusters"][1],
-        disruption_bounds["satmerg_logvr_k"][1],
-    ], dtype=np.float64)
-
-    return lower_bounds, upper_bounds
 
 
 if __name__ == "__main__":
@@ -97,9 +50,9 @@ if __name__ == "__main__":
         required=True
     )
     parser.add_argument(
-        "-e", "--wprp_error",
+        "-e", "--wprp-error",
         type=str,
-        required=True
+        default=None
     )
     parser.add_argument(
         "-r", "--rpbins",
@@ -107,27 +60,32 @@ if __name__ == "__main__":
         default=None
     )
     parser.add_argument(
-        "--halofile",
+        "--halo-file",
         type=str,
         default="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
     )
     parser.add_argument(
-        "--particlefile",
+        "--particle-file",
         type=str,
         default="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
     )
     parser.add_argument(
-        "--mass_bin_low",
+        "--hmcut",
+        type=float,
+        default=0.0
+    )
+    parser.add_argument(
+        "--mass-bin-low",
         type=float,
         default=10.6
     )
     parser.add_argument(
-        "--mass_bin_high",
+        "--mass-bin-high",
         type=float,
         default=100.0
     )
     parser.add_argument(
-        "-t", "--theta_init",
+        "-t", "--theta-init",
         type=str,
         default=None
     )
@@ -137,43 +95,47 @@ if __name__ == "__main__":
         default="./"
     )
     parser.add_argument(
-        "--adam_a",
+        "--adam-a",
         type=float,
         default=0.001
     )
     parser.add_argument(
-        "--adam_b1",
+        "--adam-b1",
         type=float,
         default=0.9
     )
     parser.add_argument(
-        "--adam_b2",
+        "--adam-b2",
         type=float,
         default=0.999
     )
     parser.add_argument(
-        "--adam_tmax",
+        "--adam-tmax",
         type=float,
         default=50
     )
-    # probably worth adding args for adam settings
     args = parser.parse_args()
-
 
     # 1) setup
     # command line args
     outdir = args.outdir
     if outdir[-1] != "/":
-        outdir.append["/"]
+        outdir.append("/")
 
     wprp_info = {}
     if RANK == 0:
         wprp_goal = np.load(args.wprp)
         print("wprp goal:", wprp_goal)
 
-        wprp_err = np.load(args.wprp_error)
+        # this is left optional for the demo, really you should provide this
+        wprp_err = 0.1 * wprp_goal
+        if args.wprp_error is not None:
+            wprp_err = np.load(args.wprp_error)
 
-        rpbins = np.load(args.rpbins)
+        # default rpbins is roughly watson rpbins
+        rpbins = np.logspace(-1, 1.3, 16, dtype=np.float64)
+        if args.rpbins is not None:
+            rpbins = np.load(args.rpbins)
         if rpbins[0] != 0:
             rpbins = np.concatenate([np.array([0.0]), rpbins], dtype=np.float64)
 
@@ -188,11 +150,12 @@ if __name__ == "__main__":
     wprp_err = wprp_info["wprp_err"]
     rpbins = wprp_info["rpbins"]
 
-    lower_bounds, upper_bounds = _get_param_bounds()
+    theta_default = get_default_params()
+    lower_bounds, upper_bounds = get_param_bounds()
 
     # let's load the catalog; note this assumes Bolshoi
-    halo_file = args.halofile
-    particle_file = args.particlefile
+    halo_file = args.halo_file
+    particle_file = args.particle_file
     box_length = 250.0  # Mpc
     buff_wprp = max(rpbins)+1  # Mpc
     zmax = 20.0
@@ -200,9 +163,6 @@ if __name__ == "__main__":
     # jax weights prefer this as an array
     mass_bin_edges = np.array([args.mass_bin_low, args.mass_bin_high], dtype=np.float64)
 
-    theta_default = np.array(list(smhm_params.values()) +
-                          list(smhm_sigma_params.values()) +
-                          list(disruption_params.values()), dtype=np.float64)
     theta_init = np.copy(theta_default)
     if args.theta_init is not None:
         theta_init = np.load(args.theta_init)
@@ -211,7 +171,7 @@ if __name__ == "__main__":
     n_rpbins = len(rpbins) - 2
     n_devices = jax.local_device_count()
 
-    hmcut = 0.0
+    hmcut = args.hmcut
     halos, _ = load_and_chop_data_bolshoi_planck(
                 particle_file,
                 halo_file,
@@ -240,10 +200,8 @@ if __name__ == "__main__":
 
     n_calls = np.zeros(1, dtype="i")
 
-
     # 2) optimization
     np.set_printoptions(precision=1, floatmode="maxprec_equal")
-
 
     # this is declared inside the __main__ so we can only have one input argument
     # for use with Adam
@@ -291,13 +249,12 @@ if __name__ == "__main__":
 
         percent_error = 100 * (wprp - wprp_goal) / wprp_goal
 
-        if n_calls % 10 == 0:
+        if n_calls % 100 == 0:
             print(f"{n_calls[0]:04}", ":", f"{error:.4f}", percent_error, flush=True)
 
         n_calls[0] += 1
         return error, error_grad
 
-/home/jwick/data/watson
     # rank 0 drives optimization, others just compute
     theta_opt = np.zeros_like(theta_init)
     if RANK == 0:
@@ -315,7 +272,8 @@ if __name__ == "__main__":
         theta_opt = np.array(
                         hmc_pos_to_model_pos(theta_opt, lower_bounds, upper_bounds),
                         dtype=np.float64
-                    )
+        )
+        print("theta opt:", theta_opt)
 
         # stop the other ranks
         stop = -1 * np.ones(n_params, dtype=np.float64)
@@ -454,7 +412,7 @@ if __name__ == "__main__":
 
         plt.xscale("log")
 
-        plt.savefig("figures/fit_wprp_all_wprp.png")
+        plt.savefig(outdir+"fit_wprp_all_wprp.png")
 
         # figure for error history
         fig = plt.figure(figsize=(10, 8), facecolor="w")
