@@ -412,7 +412,7 @@ if __name__ == "__main__":
 
         plt.xscale("log")
 
-        plt.savefig(outdir+"fit_wprp_all_wprp.png")
+        plt.savefig(outdir+"fig_wprp_all_wprp.png")
 
         # figure for error history
         fig = plt.figure(figsize=(10, 8), facecolor="w")
@@ -422,7 +422,7 @@ if __name__ == "__main__":
 
         plt.xlabel("iteration number")
         plt.ylabel("log error")
-        plt.savefig(outdir+"fit_wprp_all_error.png")
+        plt.savefig(outdir+"fig_wprp_all_error.png")
 
         # also save the final theta
         np.save(outdir+"theta_opt.npy", theta_opt)
