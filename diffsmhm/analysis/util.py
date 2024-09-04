@@ -54,5 +54,18 @@ def get_param_bounds():
         disruption_bounds["satmerg_logvr_crit_clusters"][1],
         disruption_bounds["satmerg_logvr_k"][1],
     ], dtype=np.float64)
-
     return lower_bounds, upper_bounds
+
+
+def get_param_names():
+    param_names = [
+        "smhm_logm_crit", "smhm_ratio_logm_crit", "smhm_k_logm", "smhm_lowm_index",
+        "smhm_highm_index",
+
+        "smhm_sigma_low", "smhm_sigma_high", "smhm_sigma_logm_pivot",
+        "smhm_sigma_logm_width",
+
+        "satmerg_logmhost_crit", "satmerg_logmhost_k", "satmerg_logvr_crit_dwarfs",
+        "satmerg_logvr_crit_clusters", "satmerg_logvr_k"
+    ]
+    return param_names
