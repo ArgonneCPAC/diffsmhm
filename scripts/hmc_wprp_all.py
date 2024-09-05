@@ -124,21 +124,6 @@ if __name__ == "__main__":
         description="HMC on the full correlation function"
     )
     parser.add_argument(
-        "-w", "--wprp",
-        type=str,
-        required=True
-    )
-    parser.add_argument(
-        "-e", "--wprp_error",
-        type=str,
-        default=None
-    )
-    parser.add_argument(
-        "-r", "--rpbins",
-        type=str,
-        default=None
-    )
-    parser.add_argument(
         "--halo-file",
         type=str,
         default="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
@@ -149,9 +134,14 @@ if __name__ == "__main__":
         default="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
     )
     parser.add_argument(
-        "--hmcut",
-        type=float,
-        default=0.0
+        "-w", "--wprp",
+        type=str,
+        required=True
+    )
+    parser.add_argument(
+        "-e", "--wprp_error",
+        type=str,
+        default=None
     )
     parser.add_argument(
         "--mass-bin-low",
@@ -164,6 +154,11 @@ if __name__ == "__main__":
         default=100.0
     )
     parser.add_argument(
+        "-r", "--rpbins",
+        type=str,
+        default=None
+    )
+    parser.add_argument(
         "-t", "--theta-init",
         type=str,
         default=None
@@ -172,6 +167,11 @@ if __name__ == "__main__":
         "-o", "--outdir",
         type=str,
         default="./"
+    )
+    parser.add_argument(
+        "--hmcut",
+        type=float,
+        default=0.0
     )
     parser.add_argument(
         "--prior-width",
