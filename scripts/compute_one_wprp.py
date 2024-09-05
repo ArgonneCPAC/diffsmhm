@@ -35,22 +35,22 @@ if __name__ == "__main__":
         description="Compute a single wprp with specified parameters"
     )
     parser.add_argument(
-        "--halo_file",
+        "--halo-file",
         type=str,
         default="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
     )
     parser.add_argument(
-        "--particle_file",
+        "--particle-file",
         type=str,
         default="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
     )
     parser.add_argument(
-        "--mass_bin_low",
+        "--mass-bin-low",
         type=float,
         default=10.6
     )
     parser.add_argument(
-        "-mass_bin_high",
+        "-mass-bin-high",
         type=float,
         default=100.0
     )
@@ -65,12 +65,12 @@ if __name__ == "__main__":
         default=None
     )
     parser.add_argument(
-        "-p", "--perturbation_limit",
+        "-p", "--perturbation-limit",
         type=float,
         default=0.00
     )
     parser.add_argument(
-        "-s", "--perturbation_seed",
+        "-s", "--perturbation-seed",
         type=int,
         default=999
     )
