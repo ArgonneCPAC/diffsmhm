@@ -278,7 +278,6 @@ if __name__ == "__main__":
                         hmc_pos_to_model_pos(theta_opt, lower_bounds, upper_bounds),
                         dtype=np.float64
         )
-        print("theta opt:", theta_opt)
 
         # stop the other ranks
         stop = -1 * np.ones(n_params, dtype=np.float64)
