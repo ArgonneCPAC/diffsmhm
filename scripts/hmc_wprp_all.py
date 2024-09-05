@@ -35,10 +35,6 @@ from diffsmhm.diff_stats.cuda.wprp import wprp_mpi_kernel_cuda
 from diffsmhm.diff_stats.mpi.wprp import wprp_mpi_comp_and_reduce
 
 from diffsmhm.analysis.diff_sm import compute_weight_and_jac
-from diffsmhm.analysis.hmc_bounding import (
-    hmc_pos_to_model_pos,
-    logdens_model_to_logdens_hmc
-)
 from diffsmhm.analysis.util import (
     get_default_params,
     get_param_bounds,
