@@ -45,20 +45,6 @@ if __name__ == "__main__":
         description="Fit model to provided wprp with Adam"
     )
     parser.add_argument(
-        "-w", "--wprp",
-        type=str,
-        required=True
-    )
-    parser.add_argument(
-        "-e", "--wprp-error",
-        type=str,
-        default=None
-    )
-    parser.add_argument(
-        "-r", "--rpbins",
-        type=str,
-        default=None
-    )
     parser.add_argument(
         "--halo-file",
         type=str,
@@ -69,10 +55,14 @@ if __name__ == "__main__":
         type=str,
         default="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
     )
+        "-w", "--wprp",
+        type=str,
+        required=True
+    )
     parser.add_argument(
-        "--hmcut",
-        type=float,
-        default=0.0
+        "-e", "--wprp-error",
+        type=str,
+        default=None
     )
     parser.add_argument(
         "--mass-bin-low",
@@ -85,6 +75,11 @@ if __name__ == "__main__":
         default=100.0
     )
     parser.add_argument(
+        "-r", "--rpbins",
+        type=str,
+        default=None
+    )
+    parser.add_argument(
         "-t", "--theta-init",
         type=str,
         default=None
@@ -93,6 +88,11 @@ if __name__ == "__main__":
         "-o", "--outdir",
         type=str,
         default="./"
+    )
+    parser.add_argument(
+        "--hmcut",
+        type=float,
+        default=0.0
     )
     parser.add_argument(
         "--adam-a",
