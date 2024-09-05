@@ -67,6 +67,8 @@ Command line options:
     b2 parameter for the Adam optimizer; influenecs step size decay rate. Defaults to 0.999.
 * `--adam-tmax`:
     Maximum number of minutes to run the Adam optimzier for. Default is 50.
+* `--adam-err-thresh`:
+    Error threshold at which to stop optimization. Default is 1e-6.
 
 Outputs:
 * `outdir+theta_opt.npy`: Resulting parameter set after optimization

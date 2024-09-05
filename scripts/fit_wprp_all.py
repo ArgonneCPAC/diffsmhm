@@ -45,7 +45,6 @@ if __name__ == "__main__":
         description="Fit model to provided wprp with Adam"
     )
     parser.add_argument(
-    parser.add_argument(
         "--halo-file",
         type=str,
         default="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
@@ -55,6 +54,7 @@ if __name__ == "__main__":
         type=str,
         default="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
     )
+    parser.add_argument(
         "-w", "--wprp",
         type=str,
         required=True
@@ -113,6 +113,11 @@ if __name__ == "__main__":
         "--adam-tmax",
         type=float,
         default=50
+    )
+    parser.add_argument(
+        "--adam-err-thresh",
+        type=float,
+        default=1e-6
     )
     args = parser.parse_args()
 
@@ -266,8 +271,8 @@ if __name__ == "__main__":
                                     b2=args.adam_b2,
                                     opt_params=theta_init_unbounded,
                                     err_func=mse_wprp_all,
-                                    maxiter=10000,
-                                    tmax=args.adam_tmax*60
+                                    tmax=args.adam_tmax*60,
+                                    err_threshold=args.adam_err_thresh
         )
         theta_opt = np.array(
                         hmc_pos_to_model_pos(theta_opt, lower_bounds, upper_bounds),
