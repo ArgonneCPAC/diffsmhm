@@ -7,6 +7,7 @@ def adam(
     opt_params,
     err_func,
     tmax=-1,
+    maxiter=100_000,
     err_threshold=1e-6,
     a=0.001,
     b1=0.9,
@@ -23,6 +24,8 @@ def adam(
         Function that takes in `opt_params` and returns (error, error_jacobian).
     tmax : float, optional
         Maximum time for which to run the optimizer in seconds
+    maxiter : float, optional
+        Maximum iterations of Adam to perform. If tmax is provided, maxiter is ignored.
     err_threshold : float, optional
         Error threshold at which algorithm will stop. Default is 1e-6.
     a : float, optional
@@ -63,9 +66,11 @@ def adam(
 
         err_history.append(err)
 
-        # rank 0 check loop condition
+        # check loop condition
         cont = True
         telapsed = time.time() - tstart
+        if tmax < 0 and t >= maxiter:
+            cont = False
         if tmax > 0 and telapsed > tmax:
             cont = False
         if err < err_threshold:
