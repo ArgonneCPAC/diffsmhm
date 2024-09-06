@@ -31,8 +31,8 @@ We have a few command line options:
     "Host mpeak cut" used when loading data. Higher values result in less data being used and a faster computation, which is useful for testing or demo problems.
 
 Outputs:
-* `outdir+wprp_single.npy` : the computed wprp measurement
-* `outdir+rpbins_single.npy` : the rpbins used in the wprp measurement
+* `outdir/wprp_single.npy` : the computed wprp measurement
+* `outdir/rpbins_single.npy` : the rpbins used in the wprp measurement
 
 ## `fit_wprp_all.py`
 
@@ -69,11 +69,13 @@ Command line options:
     Maximum number of minutes to run the Adam optimzier for. Default is 50.
 * `--adam-err-thresh`:
     Error threshold at which to stop optimization. Default is 1e-6.
+* `-p`, `--print-rate`:
+    Rate at which optimization information is printed. Default is every 100 iterations.
 
 Outputs:
-* `outdir+theta_opt.npy`: Resulting parameter set after optimization
-* `outdir+fig_wprp_all_wprp.png` : Figure showing starting, goal, and final wprp.
-* `outdir+fig_wprp_all_error.png` : Figure showing error history of the optimization.
+* `outdir/theta_opt.npy`: Resulting parameter set after optimization
+* `outdir/fig_wprp_all_wprp.png` : Figure showing starting, goal, and final wprp.
+* `outdir/fig_wprp_all_error.png` : Figure showing error history of the optimization.
 
 ## `hmc_wprp_all.py`
 
@@ -108,9 +110,9 @@ Command line options:
     Number of warmup iterations to perform. Default is 500.
 
 Outputs:
-* `outdir+positions.csv`:
+* `outdir/positions.csv`:
     Positions from HMC states.
-* `outdir+corne_hmc.png`:
+* `outdir/corne_hmc.png`:
     A corner plot of the HMC locations.
 
 ## `scale_bolshoi_copy.py`
