@@ -119,6 +119,11 @@ if __name__ == "__main__":
         type=float,
         default=1e-6
     )
+    parser.add_argument(
+        "-p", "--print-rate",
+        type=int,
+        default=100
+    )
     args = parser.parse_args()
 
     # 1) setup
@@ -157,6 +162,8 @@ if __name__ == "__main__":
 
     theta_default = get_default_params()
     lower_bounds, upper_bounds = get_param_bounds()
+
+    print_rate = args.print_rate
 
     # let's load the catalog; note this assumes Bolshoi
     halo_file = args.halo_file
@@ -254,7 +261,7 @@ if __name__ == "__main__":
 
         percent_error = 100 * (wprp - wprp_goal) / wprp_goal
 
-        if n_calls % 100 == 0:
+        if n_calls % print_rate == 0:
             print(f"{n_calls[0]:04}", ":", f"{error:.4f}", percent_error, flush=True)
 
         n_calls[0] += 1
