@@ -19,6 +19,7 @@ def gen_mstar_data(
     y = rng.uniform(size=npts) * boxsize
     z = rng.uniform(size=npts) * boxsize
     rp_bins = np.logspace(-1, np.log10(rpmax), nbins + 1, dtype=np.float64)
+    rp_bins = np.concatenate([np.array([0]), rp_bins], dtype=np.float64)
 
     return dict(
         log10mstar=log10mstar,

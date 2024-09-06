@@ -14,7 +14,10 @@ from diffsmhm.testing import gen_mstar_data
 def test_wprp_serial_cpu_smoke():
     data = gen_mstar_data(seed=42)
 
-    nrp = data["rp_bins"].shape[0] - 1
+    # -2 below bc rpbins[1:] are the bin edges and we have rpbins[0] == 0
+    # so the number of actual bins is len(rpbins[1:])-1, or len(rpbins)-2
+    nrp = data["rp_bins"].shape[0] - 2
+
     wprp, wprp_grad = wprp_serial_cpu(
         x1=data["x"],
         y1=data["y"],

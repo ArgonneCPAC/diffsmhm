@@ -16,7 +16,14 @@ from diffsmhm.utils import time_step
 
 
 def wprp_mpi_comp_and_reduce(
-    *, x1, y1, z1, w1, w1_jac, inside_subvol, rpbins_squared, zmax, boxsize, kernel_func
+    *,
+    x1, y1, z1, w1,
+    w1_jac,
+    inside_subvol,
+    rpbins_squared,
+    zmax,
+    boxsize,
+    kernel_func
 ):
     """The per-process CPU kernel for MPI-parallel wprp computations.
 
@@ -91,18 +98,15 @@ def wprp_mpi_comp_and_reduce(
     with time_step("final post-processing"):
         # now do norm by RR and compute proper grad
         if RANK == 0:
-            # if need be convert some things to numpy from cupy
-            try:
-                rpbins_squared = np.array(rpbins_squared)
-            except TypeError:
-                rpbins_squared = np.array(rpbins_squared.get())
+            # have the kernel handle any device/host transfers
+            rpbins_sq = data.rpbins_squared
 
             n_eff = w_tot**2 / w2_tot
 
             # this is the volume of the shell
             n_pi = int(zmax)
             dpi = 1.0  # here to make the code clear, always true
-            volfac = np.pi * (rpbins_squared[1:] - rpbins_squared[:-1])
+            volfac = np.pi * (rpbins_sq[1:] - rpbins_sq[:-1])
             volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
 
             # finally get rr and drr

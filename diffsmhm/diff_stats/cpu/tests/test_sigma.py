@@ -24,8 +24,8 @@ def test_sigma_serial_cpu_smoke():
     xh = rng.uniform(0.0, boxsize, n_halos)
     yh = rng.uniform(0.0, boxsize, n_halos)
     zh = rng.uniform(0.0, boxsize, n_halos)
-    wh = rng.uniform(0.0, 1.0, n_halos)
-    dwh = rng.uniform(0.0, 1.0, (n_pars, n_halos))
+    wh = rng.uniform(-0.1, 1.0, n_halos)
+    dwh = rng.uniform(-0.1, 1.0, (n_pars, n_halos))
 
     n_particles = 1000
 

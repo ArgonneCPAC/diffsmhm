@@ -44,8 +44,15 @@ def wprp_serial_cpu(
         The gradients of the projected correlation function.
     """
 
+    # check for first rpbin being zero for consistency with mpi kernels
+    # even though we don't use the 0.0 in this kernel?
+    assert np.allclose(rpbins_squared[0], 0)
+
     n_grads = w1_jac.shape[0]
-    n_rp = rpbins_squared.shape[0] - 1
+
+    # -2 bc rpbins[1:] are the bin edges and we have rpbins[0] == 0
+    # so the number of actual bins is len(rpbins[1:])-1, or len(rpbins)-2
+    n_rp = rpbins_squared.shape[0] - 2
     n_pi = int(zmax)
 
     # dd
@@ -53,7 +60,7 @@ def wprp_serial_cpu(
         1,
         int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
         zmax,
-        np.sqrt(rpbins_squared),
+        np.sqrt(rpbins_squared[1:]),
         x1,
         y1,
         z1,
@@ -73,7 +80,7 @@ def wprp_serial_cpu(
             0,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared),
+            np.sqrt(rpbins_squared[1:]),
             x1,
             y1,
             z1,
@@ -96,7 +103,7 @@ def wprp_serial_cpu(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared),
+            np.sqrt(rpbins_squared[1:]),
             x1,
             y1,
             z1,
@@ -116,10 +123,11 @@ def wprp_serial_cpu(
         )
 
     # now do norm by RR and compute proper grad
+    # this is the part where we want to drop the 0 rpbin
 
     # this is the volume of the shell
     dpi = 1.0  # here to make the code clear, always true
-    volfac = np.pi * (rpbins_squared[1:] - rpbins_squared[:-1])
+    volfac = np.pi * (rpbins_squared[2:] - rpbins_squared[1:-1])
     volratio = volfac[:, None] * np.ones(n_pi) * dpi / boxsize ** 3
 
     # finally get rr and drr
@@ -145,16 +153,19 @@ def wprp_mpi_kernel_cpu(
 
     Parameters
     ----------
-    x1, y1, z1, w1 : array-like, shape (n_pts,)
-        The arrays of positions and weights for the first set of points.
-    w1_jac : array-lke, shape (n_grads, n_pts,)
-        The array of weight gradients for the first set of points.
-    inside_subvol : array-like, shape (n_pts,)
-        A boolean array with `True` when the point is inside the subvolume
+    x1, y1, z1, w1 : [array-like], shape [(n_pts,), (n_pts,), ...]
+        The lists of arrays of positions and weights for the first set of points.
+        As with all lists in this method, arrays in each respective list will be
+        concatenated for calculation.
+    w1_jac : [array-lke], shape [(n_grads, n_pts,), ...]
+        The list of array of weight gradients for the first set of points.
+    inside_subvol : [array-like], shape [(n_pts,), ...]
+        The list of boolean arrays with `True` when the point is inside the subvolume
         and `False` otherwise.
-    rpbins_squared : array-like, shape (n_rpbins+1,)
-        Array of the squared bin edges in the `rp` direction. Note that
-        this array is one longer than the number of bins in `rp` direction.
+    rpbins_squared : [array-like], shape [(n_rpbins+1,), ...]
+        The list of arrays of the squared bin edges in the `rp` direction. Note that
+        these arrays are one longer than the number of bins in `rp` direction. Also
+        note that if multiple arrays are passed in this list they must be identical.
     zmax : float
         The maximum separation in the `pi` (or typically `z`) direction. Output
         bins in `z` direction are unit width, so make sure this is a whole number.
@@ -166,8 +177,21 @@ def wprp_mpi_kernel_cpu(
     wprp_mpi_data : named tuple of type WprpMPIData
         A named tuple of the data needed for the MPI reduction and final summary stats.
     """
-    n_grads = w1_jac.shape[0]
-    n_rp = rpbins_squared.shape[0] - 1
+    # assert that all rpbins arrays are the same and start at 0.0
+    assert np.allclose(rpbins_squared[0][0], 0)
+    for i, _ in enumerate(rpbins_squared[:-1]):
+        assert np.allclose(rpbins_squared[i], rpbins_squared[i+1])
+
+    # concatenate input arrays
+    x1_all = np.concatenate(x1)
+    y1_all = np.concatenate(y1)
+    z1_all = np.concatenate(z1)
+    w1_all = np.concatenate(w1)
+    w1_jac_all = np.concatenate(w1_jac, axis=1)
+    inside_subvol_all = np.concatenate(inside_subvol)
+
+    n_grads = w1_jac_all.shape[0]
+    n_rp = rpbins_squared[0].shape[0] - 2
     n_pi = int(zmax)
 
     # dd
@@ -175,15 +199,15 @@ def wprp_mpi_kernel_cpu(
         False,
         int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
         zmax,
-        np.sqrt(rpbins_squared),
-        x1[inside_subvol],
-        y1[inside_subvol],
-        z1[inside_subvol],
-        weights1=w1[inside_subvol],
-        X2=x1,
-        Y2=y1,
-        Z2=z1,
-        weights2=w1,
+        np.sqrt(rpbins_squared[0][1:]),
+        x1_all[inside_subvol_all],
+        y1_all[inside_subvol_all],
+        z1_all[inside_subvol_all],
+        weights1=w1_all[inside_subvol_all],
+        X2=x1_all,
+        Y2=y1_all,
+        Z2=z1_all,
+        weights2=w1_all,
         periodic=False,
         weight_type="pair_product",
     )
@@ -198,15 +222,15 @@ def wprp_mpi_kernel_cpu(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared),
-            x1[inside_subvol],
-            y1[inside_subvol],
-            z1[inside_subvol],
-            weights1=w1[inside_subvol],
-            X2=x1,
-            Y2=y1,
-            Z2=z1,
-            weights2=w1_jac[g, :],
+            np.sqrt(rpbins_squared[0][1:]),
+            x1_all[inside_subvol_all],
+            y1_all[inside_subvol_all],
+            z1_all[inside_subvol_all],
+            weights1=w1_all[inside_subvol_all],
+            X2=x1_all,
+            Y2=y1_all,
+            Z2=z1_all,
+            weights2=w1_jac_all[g, :],
             periodic=False,
             weight_type="pair_product",
         )
@@ -214,20 +238,19 @@ def wprp_mpi_kernel_cpu(
             res["weightavg"].reshape((n_rp, n_pi))
             * res["npairs"].reshape((n_rp, n_pi))
         )
-
         res = Corrfunc.theory.DDrppi(
             False,
             int(os.environ.get("OMP_NUM_THREADS", psutil.cpu_count(logical=False))),
             zmax,
-            np.sqrt(rpbins_squared),
-            x1[inside_subvol],
-            y1[inside_subvol],
-            z1[inside_subvol],
-            weights1=w1_jac[g, inside_subvol],
-            X2=x1,
-            Y2=y1,
-            Z2=z1,
-            weights2=w1,
+            np.sqrt(rpbins_squared[0][1:]),
+            x1_all[inside_subvol_all],
+            y1_all[inside_subvol_all],
+            z1_all[inside_subvol_all],
+            weights1=w1_jac_all[g, inside_subvol_all],
+            X2=x1_all,
+            Y2=y1_all,
+            Z2=z1_all,
+            weights2=w1_all,
             periodic=False,
             weight_type="pair_product",
         )
@@ -237,10 +260,11 @@ def wprp_mpi_kernel_cpu(
         )
 
     # now do reductions
-    _w_tot = np.atleast_1d(np.sum(w1[inside_subvol]))
-    _w2_tot = np.atleast_1d(np.sum(w1[inside_subvol]**2))
-    _wdw_tot = np.sum(w1_jac[:, inside_subvol] * w1[inside_subvol], axis=1)
-    _dw_tot = np.sum(w1_jac[:, inside_subvol], axis=1)
+    _w_tot = np.atleast_1d(np.sum(w1_all[inside_subvol_all]))
+    _w2_tot = np.atleast_1d(np.sum(w1_all[inside_subvol_all]**2))
+    _wdw_tot = np.sum(w1_jac_all[:, inside_subvol_all] * w1_all[inside_subvol_all],
+                      axis=1)
+    _dw_tot = np.sum(w1_jac_all[:, inside_subvol_all], axis=1)
 
     return WprpMPIData(
         dd=_dd / 2.0,
@@ -249,4 +273,5 @@ def wprp_mpi_kernel_cpu(
         w2_tot=_w2_tot,
         ww_jac_tot=_wdw_tot,
         w_jac_tot=_dw_tot,
+        rpbins_squared=rpbins_squared[0][1:]
     )
