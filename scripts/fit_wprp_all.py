@@ -130,7 +130,7 @@ if __name__ == "__main__":
     # command line args
     outdir = args.outdir
     if outdir[-1] != "/":
-        outdir.append("/")
+        outdir += "/"
 
     wprp_info = {}
     if RANK == 0:
@@ -272,6 +272,7 @@ if __name__ == "__main__":
     if RANK == 0:
         theta_init_unbounded = model_pos_to_hmc_pos(theta_init, lower_bounds,
                                                     upper_bounds)
+
         theta_opt, error_history = adam(
                                     a=args.adam_a,
                                     b1=args.adam_b1,
