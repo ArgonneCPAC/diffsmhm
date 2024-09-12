@@ -446,8 +446,6 @@ def wprp_mpi_kernel_cuda(
     result_grad_all = []
     # slighlty faster to preallocate
     for d in range(n_devices):
-        n_d = device_count[d]
-
         if can_cupy:
             cp.cuda.Device(d).use()
 
