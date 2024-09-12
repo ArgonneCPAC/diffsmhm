@@ -444,6 +444,16 @@ def wprp_mpi_kernel_cuda(
     # lists of results for combination later
     result_all = []
     result_grad_all = []
+    # slighlty faster to preallocate
+    for d in range(n_devices):
+        if can_cupy:
+            cp.cuda.Device(d).use()
+
+        result_d = xp.zeros(n_rp * n_pi, dtype=np.float64)
+        result_grad_d = xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
+        result_all.append(result_d)
+        result_grad_all.append(result_grad_d)
+
     for d in range(n_devices):
         # get this chunk range
         count = device_count[d]
@@ -451,12 +461,10 @@ def wprp_mpi_kernel_cuda(
         start_idx = displ
         end_idx = displ + count
 
-        # data should already be copied to relevant gpus
         if can_cupy:
             cp.cuda.Device(d).use()
-
-        result_d = xp.zeros(n_rp * n_pi, dtype=np.float64)
-        result_grad_d = xp.zeros(n_grads * n_rp * n_pi, dtype=xp.float64)
+        result_d = result_all[d]
+        result_grad_d = result_grad_all[d]
 
         # launch kernel
         _count_weighted_pairs_rppi_with_derivs_cuda[blocks, threads](
@@ -465,10 +473,6 @@ def wprp_mpi_kernel_cuda(
             result_d, result_grad_d,
             start_idx, end_idx
         )
-
-        # add chunked result to list
-        result_all.append(result_d)
-        result_grad_all.append(result_grad_d)
 
     # now add the distributed calculation
     if can_cupy:
