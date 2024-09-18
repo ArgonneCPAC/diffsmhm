@@ -349,7 +349,7 @@ if __name__ == "__main__":
                 idx_to_deposit=idx_to_deposit,
                 mass_bin_low=mass_bin_edges[0],
                 mass_bin_high=mass_bin_edges[1],
-                theta=theta_init
+                theta=theta_default
     )
 
     w_list = []
@@ -413,14 +413,14 @@ if __name__ == "__main__":
         # figure for wprp optimization
         fig = plt.figure(figsize=(10, 8), facecolor="w")
 
-        plt.plot(rpbins, wprp_init * rpbins, linewidth=3, c="tab:blue")
-        plt.plot(rpbins, wprp_final * rpbins, linewidth=2, c="tab:orange")
-        plt.plot(rpbins, wprp_goal * rpbins, linewidth=1, c="k")
+        plt.plot(rpbins, wprp_init * rpbins, marker="o", markersize=10, c="tab:blue")
+        plt.plot(rpbins, wprp_final * rpbins, marker="o", markersize=10, c="tab:orange")
+        plt.errorbar(rpbins, wprp_goal * rpbins, wprp_err, c="k", capsize=5, marker="s")
 
         plt.xlabel("rp", fontsize=16)
         plt.ylabel("rp wp(rp)", fontsize=16)
 
-        plt.legend(["start params", "opt params", "goal"])
+        plt.legend(["default params", "opt params", "goal"])
 
         plt.xscale("log")
 
