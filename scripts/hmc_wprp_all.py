@@ -430,6 +430,8 @@ if __name__ == "__main__":
         num_warmup = args.hmc_nwarmup
         num_samples = args.hmc_niter
         checkpoint_freq = args.checkpoint_frequency
+        if checkpoint_freq < 0:
+            checkpoint_freq = int(1e9)
         fpath_checkpoint = outdir+"checkpoint_hmc.hdf5"
         fpath_positions = outdir+"positions.csv"
 
@@ -449,7 +451,8 @@ if __name__ == "__main__":
                     nuts_kernel = NUTS(model, step_size=hmc_ss,
                                        inverse_mass_matrix=hmc_imm)
                 # `num_samples` below cannot be zero so it's 1
-                mcmc = MCMC(nuts_kernel, num_warmup=n_stage, num_samples=1, num_chains=1)
+                mcmc = MCMC(nuts_kernel, num_warmup=n_stage,
+                            num_samples=1, num_chains=1)
                 mcmc.run(hmc_key)
                 n_warmup_iter_completed += n_stage
 

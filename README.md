@@ -53,7 +53,7 @@ Finally, we can run HMC on this problem using the starting position obtained thr
 
 Run
 ```
-mpirun -np 8 ./set_affinity_gpu_polaris.sh python hmc_wprp_all.py -w wprp_single.hdf5 --halo-file [PATH_TO_HALOS] --particle-file [PATH_TO_PARTICLES] -t `theta_opt.hdf5` --hmcut 14.6 --hmc-niter 500 -f 1000 --hmc-nwarmup 250 --prior-width 0.01
+mpirun -np 8 ./set_affinity_gpu_polaris.sh python hmc_wprp_all.py -w wprp_single.hdf5 --halo-file [PATH_TO_HALOS] --particle-file [PATH_TO_PARTICLES] -t `theta_opt.hdf5` --hmcut 14.6 --hmc-niter 500 -f -1 --hmc-nwarmup 250 --prior-width 0.01
 ```
 For me on a single Polaris node, this script took just under 15 minutes to run.
 
