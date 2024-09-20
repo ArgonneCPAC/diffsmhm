@@ -28,13 +28,12 @@ conda activate diffsmhm
 cd $PBS_O_WORKDIR
 
 # relative from the diffsmhm/scripts dir
-WPRP_FILE="inputs_watson/wprp_watson10.6.all.npy"
-WPERR_FILE="inputs_watson/wperr_watson10.6.all.npy"
-RP_FILE="inputs_watson/rpbins_watson10.6.all.npy"
+WPRP_FILE="inputs_watson/bin10.2/wprp_10.2.hdf5"
+MASS_BIN_LOW="10.2"
 
 ADAM_A=0.01
-OUTDIR="output/"
+OUTDIR="outputs_watson/bin10.2/"
 
 mpiexec -np ${NTOTRANKS} --ppn ${NRANKS_PER_NODE}:node --depth=${NDEPTH} --cpu-bind depth \
-    ./set_gpu_affinity.sh python fit_wprp_all.py -w $WPRP_FILE -e $WPERR_FILE -r $RP_FILE \
+    ./set_gpu_affinity.sh python fit_wprp_all.py -w $WPRP_FILE --mass-bin-low $MASS_BIN_LOW \
     --adam_a $ADAM_A --o $OUTDIR
