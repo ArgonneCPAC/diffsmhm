@@ -101,6 +101,8 @@ Command line options:
     Number of HMC iterations to perform. Default is 1000.
 * `--hmc-nwarmup`:
     Number of warmup iterations to perform. Default is 500.
+* `-f`, `--checkpoint-frequench`
+    Frequency of checkpointing HMC. Default is 100 iterations.
 
 Outputs:
 * `outdir/positions.csv`:
