@@ -238,7 +238,7 @@ if __name__ == "__main__":
                 for n in param_names:
                     retrieval_str = "inverse_mass_matrix/"+n
                     vallist.append(f[retrieval_str][...])
-            hmc_imm = {params:np.array(vallist, dtype=np.float64)}
+            hmc_imm = {params: np.array(vallist, dtype=np.float64)}
 
     wprp_info = COMM.bcast(wprp_info, root=0)
     wprp_goal = wprp_info["wprp"]
