@@ -1,4 +1,5 @@
 import argparse
+import h5py
 
 import numpy as np
 import cupy as cp
@@ -108,7 +109,8 @@ if __name__ == "__main__":
 
     rpbins = cp.logspace(-1, 1.3, 16, dtype=np.float64)
     if args.rpbins is not None:
-        rpbins = np.load(args.rpbins)
+        with h5py.File(args.rpbins, "r") as f:
+            rpbins = f["rpbins"][...].astype(np.float64)
     if rpbins[0] > 0:
         rpbins = cp.concatenate([cp.array([0]), rpbins])
 
@@ -127,7 +129,8 @@ if __name__ == "__main__":
                                                 n_params)
     theta = theta_default * parameter_perturbations
     if args.theta is not None:
-        theta = np.load(args.theta)
+        with h5py.File(args.theta, "r") as f:
+            theta = f["theta"][...].astype(np.float64)
     if RANK == 0:
         print("theta:", theta, flush=True)
 
@@ -185,8 +188,8 @@ if __name__ == "__main__":
         print("WPRP:", wprp)
 
         # save to file
-        fpath_wprp = outdir+"wprp_single.npy"
-        fpath_rpbins = outdir+"rpbins_single.npy"
-
-        np.save(fpath_wprp, wprp)
-        np.save(fpath_rpbins, rpbins)
+        rpbins = np.array(rpbins.get(), dtype=np.float64)
+        fpath = outdir+"wprp_single.hdf5"
+        with h5py.File(fpath, "w") as f:
+            wprp_data = f.create_dataset("wprp", data=wprp, dtype=np.float64)
+            rpbin_data = f.create_dataset("rpbins", data=rpbins, dtype=np.float64)
