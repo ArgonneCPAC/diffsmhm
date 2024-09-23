@@ -437,23 +437,38 @@ if __name__ == "__main__":
 
         # if warmup to be done
         n_warmup_iter_completed = 0
-        while n_warmup_iter_completed < num_warmup:
-            # decide n iter for this checkpoint stage
-            n_stage = checkpoint_freq
-            if num_warmup - n_warmup_iter_completed < checkpoint_freq:
-                n_stage = num_warmup - n_warmup_iter_completed
+
+        n_warmup_done = 0
+        n_sample_done = 0
+        while n_warmup_done < num_warmup or n_sample_done < num_samples:
+            # decide number of warmup iterations for this checkpoint stage
+            n_stage_wu = checkpoint_freq
+            if num_warmup - n_warmup_done < checkpoint_freq:
+                n_stage_wu = num_warmup - n_warmup_done
+            do_adapt = n_stage_wu > 0
+            # decide number of sample iterations for this checkpoint stage
+            n_stage_s = checkpoint_freq - n_stage_wu
+            if num_samples - n_sample_done < checkpoint_freq:
+                n_stage_s = num_samples - n_sample_done
 
             # run this warmup stage; start with existing step & mass if available
             if hmc_ss is None:
                 nuts_kernel = NUTS(model)
             else:
                 nuts_kernel = NUTS(model, step_size=hmc_ss,
-                                   inverse_mass_matrix=hmc_imm)
-            # `num_samples` below cannot be zero so it's 1
-            mcmc = MCMC(nuts_kernel, num_warmup=n_stage,
-                        num_samples=1, num_chains=1)
+                                   inverse_mass_matrix=hmc_imm,
+                                   adapt_mass_matrix=do_adapt,
+                                   adapt_step_size=do_adapt)
+
+            # `num_samples` below cannot be zero so make sure this is >= 1
+            if n_stage_s == 0:
+                n_stage_s = 1
+            mcmc = MCMC(nuts_kernel, num_warmup=n_stage_wu,
+                        num_samples=n_stage_s, num_chains=1)
             mcmc.run(hmc_key)
-            n_warmup_iter_completed += n_stage
+
+            n_warmup_done += n_stage_wu
+            n_sample_done += n_stage_s
 
             # save ss, IMM, and rng key state
             hmc_ss = mcmc.last_state.adapt_state.step_size
@@ -486,37 +501,16 @@ if __name__ == "__main__":
                     for i, k in enumerate(imm_keys):
                         grp_imm.create_dataset(k, data=imm_vals[i], dtype="f")
 
-        # at this point warmup info is expected to exist
-        n_iter_completed = 0
-        while n_iter_completed < num_samples:
-            nuts_kernel = NUTS(model, step_size=hmc_ss,
-                               inverse_mass_matrix=hmc_imm,
-                               adapt_mass_matrix=False,
-                               adapt_step_size=False)
-            # do normal iter stage
-            n_stage = checkpoint_freq
-            if num_samples - n_iter_completed < checkpoint_freq:
-                n_stage = num_samples - n_iter_completed
-            mcmc = MCMC(nuts_kernel, num_warmup=0, num_samples=n_stage, num_chains=1)
-            mcmc.run(hmc_key)
-            n_iter_completed += n_stage
-
-            # save prng key state; file should exist at this point
-            hmc_key = mcmc.last_state.rng_key
-            with h5py.File(fpath_checkpoint, "r+") as f:
-                # save chain prng state
-                f["checkpoint_prng/0"][...] = hmc_key[0]
-                f["checkpoint_prng/1"][...] = hmc_key[1]
-
-            # update or create the csv of positions
-            mcmc_positions = mcmc.get_samples()
-            positions_df = pd.DataFrame.from_dict(mcmc_positions)
-            if os.path.isfile(fpath_positions):
-                positions_df.to_csv(fpath_positions, mode="a",
-                                    header=False, index=False)
-            else:
-                positions_df.to_csv(fpath_positions, mode="w",
-                                    header=True, index=False)
+            # if we took samples, update or create the csv of positions
+            if n_stage_s > 1:
+                mcmc_positions = mcmc.get_samples()
+                positions_df = pd.DataFrame.from_dict(mcmc_positions)
+                if os.path.isfile(fpath_positions):
+                    positions_df.to_csv(fpath_positions, mode="a",
+                                        header=False, index=False)
+                else:
+                    positions_df.to_csv(fpath_positions, mode="w",
+                                        header=True, index=False)
 
         # we're done with HMC, broadcast the stop condition
         stop = -1 * np.ones_like(theta_init)
