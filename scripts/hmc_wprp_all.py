@@ -511,7 +511,6 @@ if __name__ == "__main__":
             # update or create the csv of positions
             mcmc_positions = mcmc.get_samples()
             positions_df = pd.DataFrame.from_dict(mcmc_positions)
-            print("CCC:", os.path.isfile(fpath_positions), flush=True)
             if os.path.isfile(fpath_positions):
                 positions_df.to_csv(fpath_positions, mode="a",
                                     header=False, index=False)
