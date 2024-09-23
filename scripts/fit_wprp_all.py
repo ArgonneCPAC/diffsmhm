@@ -132,10 +132,9 @@ if __name__ == "__main__":
             if rpbins[0] != 0:
                 rpbins = np.concatenate([np.array([0.0]), rpbins], dtype=np.float64)
 
-            # this is left optional for the demo, really you should provide this
-            if "wprp_error" not in f.keys():
-                wprp_err = 0.1 * abs(wprp_goal)
-            else:
+            # this is left optional for demo/testing, really you should provide this
+            wprp_err = 0.1 * abs(wprp_goal)
+            if "wprp_error" in f.keys():
                 wprp_err = f["wprp_error"][...].astype(np.float64)
 
         print("wprp goal:", wprp_goal)
