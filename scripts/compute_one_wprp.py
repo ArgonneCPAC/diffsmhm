@@ -107,13 +107,6 @@ if __name__ == "__main__":
     # jax wants an array for these when we do weights
     mass_bin_edges = np.array([args.mass_bin_low, args.mass_bin_high], dtype=np.float64)
 
-    rpbins = cp.logspace(-1, 1.3, 16, dtype=np.float64)
-    if args.rpbins is not None:
-        with h5py.File(args.rpbins, "r") as f:
-            rpbins = f["rpbins"][...].astype(np.float64)
-    if rpbins[0] > 0:
-        rpbins = cp.concatenate([cp.array([0]), rpbins])
-
     zmax = 20.0
 
     theta_default = get_default_params()
@@ -128,9 +121,16 @@ if __name__ == "__main__":
                                                 1+args.perturbation_limit,
                                                 n_params)
     theta = theta_default * parameter_perturbations
-    if args.theta is not None:
-        with h5py.File(args.theta, "r") as f:
+
+    rpbins = cp.logspace(-1, 1.3, 16, dtype=np.float64)
+    with h5py.File(args.theta, "r") as f:
+        if args.theta is not None:
             theta = f["theta"][...].astype(np.float64)
+        if args.rpbins is not None:
+            rpbins = f["rpbins"][...].astype(np.float64)
+
+    if rpbins[0] > 0:
+        rpbins = cp.concatenate([cp.array([0]), rpbins])
     if RANK == 0:
         print("theta:", theta, flush=True)
 
