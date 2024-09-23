@@ -110,10 +110,7 @@ if __name__ == "__main__":
     zmax = 20.0
 
     theta_default = get_default_params()
-
     n_params = len(theta_default)
-    n_rpbins = len(rpbins)-1
-    n_devices = jax.local_device_count()
 
     # perturb theta unless file to load is specified
     np.random.seed(args.perturbation_seed)
@@ -133,6 +130,9 @@ if __name__ == "__main__":
         rpbins = cp.concatenate([cp.array([0]), rpbins])
     if RANK == 0:
         print("theta:", theta, flush=True)
+
+    n_rpbins = len(rpbins)-1
+    n_devices = jax.local_device_count()
 
     idx_to_deposit = _calculate_indx_to_deposit(halos["upid"], halos["halo_id"])
     idx_to_deposit = jnp.copy(idx_to_deposit)

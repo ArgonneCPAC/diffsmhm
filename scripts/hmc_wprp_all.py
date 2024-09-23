@@ -459,6 +459,9 @@ if __name__ == "__main__":
             hmc_ss = mcmc.last_state.adapt_state.step_size
             hmc_imm = mcmc.last_state.adapt_state.inverse_mass_matrix
             hmc_key = mcmc.last_state.rng_key
+
+            imm_keys = [*hmc_imm][0]
+            imm_vals = [*hmc_imm.values()][0]
             # need to check if file exists bc writing / editing are different
             if os.path.isfile(fpath_checkpoint):
                 with h5py.File(fpath_checkpoint, "r+") as f:
@@ -478,8 +481,6 @@ if __name__ == "__main__":
                     grp_pos.create_dataset("1", data=hmc_key[1], dtype=np.uint32)
 
                     # save warmup info
-                    imm_keys = [*hmc_imm][0]
-                    imm_vals = [*hmc_imm.values()][0]
                     f.create_dataset("step_size", data=hmc_ss, dtype="f")
                     grp_imm = f.create_group("inverse_mass_matrix")
                     for i, k in enumerate(imm_keys):
