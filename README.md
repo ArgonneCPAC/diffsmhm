@@ -38,7 +38,7 @@ The script will save an hdf5 file which we'll use in the next steps: `wprp_singl
 Next, we can run an optimization to find a starting point for HMC.
 This will use the script `scripts/fit_wprp_all.py` like so
 ```
-mpirun -np 8 ./set_affinity_gpu_polaris.sh python fit_wprp_all.py -w wprp_single.hdf5 --halo-file [PATH_TO_HALOS] --particle-file [PATH_TO_PARTICLES] ---hmcut 14.6 --adam-tmax 10 --adam-a 0.005
+mpirun -np 8 ./set_affinity_gpu_polaris.sh python fit_wprp_all.py -w wprp_single.hdf5 --halo-file [PATH_TO_HALOS] --particle-file [PATH_TO_PARTICLES] --hmcut 14.6 --adam-tmax 5 --adam-a 0.005
 ```
 
 The above will run the Adam optimizer for 10 minutes on the SMHM model starting at the default parameters and with our previously generated wprp as the goal value. 
@@ -58,6 +58,8 @@ mpirun -np 8 ./set_affinity_gpu_polaris.sh python hmc_wprp_all.py -w wprp_single
 For me on a single Polaris node, this script took just under 15 minutes to run.
 
 The script outputs a csv file of the HMC positions and creates a corner plot, `corner_hmc.py`.
+There is also a hdf5 file called `checkpoint_hmc.hdf5` that stores the warmup info and chain state in case you want to load the chain and do more sampling later.
+The above command turns off checkpointing during sampling, notice the input `-f -1`, so only saves the state after completion.
 
 # Running Other Code
 ## Scaling
