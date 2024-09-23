@@ -208,9 +208,8 @@ if __name__ == "__main__":
                 rpbins = np.concatenate([np.array([0.0]), rpbins], dtype=np.float64)
 
             # optional for purposes of the demo, really you should provide this
-            if "wprp_error" not in f.keys():
-                wprp_err = 0.1 * wprp_goal
-            else:
+            wprp_err = 0.1 * wprp_goal
+            if "wprp_error" in f.keys():
                 wprp_err = f["wprp_error"][...].astype(np.float64)
 
         assert len(wprp_goal) == len(rpbins) - 2
@@ -225,12 +224,13 @@ if __name__ == "__main__":
         hmc_ss = None
         hmc_imm = None  # will be a dictionary
         hmc_key = jax.random.PRNGKey(42)
-        if not do_hmc_adapt:
+        if args.hmc_checkpoint is not None:
             hmc_imm = {}
             with h5py.File(args.hmc_checkpoint, "r") as f:
                 hmc_ss = f["step_size"][...]
 
-                # PRNGKey is how the docs suggest to resume chains
+                # saving the PRNGKey is how the docs suggest to resume chains
+                # https://num.pyro.ai/en/stable/mcmc.html; post_warmup_state
                 hmc_key = jax.numpy.array([
                             f["checkpoint_prng/0"][...],
                             f["checkpoint_prng/1"][...]], dtype=np.uint32
@@ -436,55 +436,54 @@ if __name__ == "__main__":
         fpath_positions = outdir+"positions.csv"
 
         # if warmup to be done
-        if num_warmup > 0:
-            n_warmup_iter_completed = 0
-            while n_warmup_iter_completed < num_warmup:
-                # decide n iter for this checkpoint stage
-                n_stage = checkpoint_freq
-                if num_warmup - n_warmup_iter_completed < checkpoint_freq:
-                    n_stage = num_warmup - n_warmup_iter_completed
+        n_warmup_iter_completed = 0
+        while n_warmup_iter_completed < num_warmup:
+            # decide n iter for this checkpoint stage
+            n_stage = checkpoint_freq
+            if num_warmup - n_warmup_iter_completed < checkpoint_freq:
+                n_stage = num_warmup - n_warmup_iter_completed
 
-                # run this warmup stage; start with existing step & mass if available
-                if hmc_ss is None:
-                    nuts_kernel = NUTS(model)
-                else:
-                    nuts_kernel = NUTS(model, step_size=hmc_ss,
-                                       inverse_mass_matrix=hmc_imm)
-                # `num_samples` below cannot be zero so it's 1
-                mcmc = MCMC(nuts_kernel, num_warmup=n_stage,
-                            num_samples=1, num_chains=1)
-                mcmc.run(hmc_key)
-                n_warmup_iter_completed += n_stage
+            # run this warmup stage; start with existing step & mass if available
+            if hmc_ss is None:
+                nuts_kernel = NUTS(model)
+            else:
+                nuts_kernel = NUTS(model, step_size=hmc_ss,
+                                   inverse_mass_matrix=hmc_imm)
+            # `num_samples` below cannot be zero so it's 1
+            mcmc = MCMC(nuts_kernel, num_warmup=n_stage,
+                        num_samples=1, num_chains=1)
+            mcmc.run(hmc_key)
+            n_warmup_iter_completed += n_stage
 
-                # save ss, IMM, and rng key state
-                hmc_ss = mcmc.last_state.adapt_state.step_size
-                hmc_imm = mcmc.last_state.adapt_state.inverse_mass_matrix
-                hmc_key = mcmc.last_state.rng_key
-                # need to check if file exists bc writing / editing are different
-                if os.path.isfile(fpath_checkpoint):
-                    with h5py.File(fpath_checkpoint, "w") as f:
-                        # save chain prng state
-                        grp_pos = f.create_group("checkpoint_prng")
-                        grp_pos.create_dataset("0", data=hmc_key[0], dtype=np.uint32)
-                        grp_pos.create_dataset("1", data=hmc_key[1], dtype=np.uint32)
+            # save ss, IMM, and rng key state
+            hmc_ss = mcmc.last_state.adapt_state.step_size
+            hmc_imm = mcmc.last_state.adapt_state.inverse_mass_matrix
+            hmc_key = mcmc.last_state.rng_key
+            # need to check if file exists bc writing / editing are different
+            if os.path.isfile(fpath_checkpoint):
+                with h5py.File(fpath_checkpoint, "r+") as f:
+                    # save chain prng state
+                    f["checkpoint_prng/0"][...] = hmc_key[0]
+                    f["checkpoint_prng/1"][...] = hmc_key[1]
 
-                        # save warmup info
-                        imm_keys = [*hmc_imm][0]
-                        imm_vals = [*hmc_imm.values()][0]
-                        f.create_dataset("step_size", data=hmc_ss, dtype="f")
-                        grp_imm = f.create_group("inverse_mass_matrix")
-                        for i, k in enumerate(imm_keys):
-                            grp_imm.create_dataset(k, data=imm_vals[i], dtype="f")
-                else:
-                    with h5py.File(fpath_checkpoint, "f+") as f:
-                        # save chain prng state
-                        f["checkpoint_prng/0"][...] = hmc_key[0]
-                        f["checkpoint_prng/1"][...] = hmc_key[1]
+                    # save warmup info
+                    f["step_size"][...] = hmc_ss
+                    for i, k in enumerate(imm_keys):
+                        f["inverse_mass_matrix/"+k][...] = imm_vals[i]
+            else:
+                with h5py.File(fpath_checkpoint, "w") as f:
+                    # save chain prng state
+                    grp_pos = f.create_group("checkpoint_prng")
+                    grp_pos.create_dataset("0", data=hmc_key[0], dtype=np.uint32)
+                    grp_pos.create_dataset("1", data=hmc_key[1], dtype=np.uint32)
 
-                        # save warmup info
-                        f["step_size"][...] = hmc_ss
-                        for i, k in enumerate(imm_keys):
-                            f["inverse_mass_matrix/"+k][...] = imm_vals[i]
+                    # save warmup info
+                    imm_keys = [*hmc_imm][0]
+                    imm_vals = [*hmc_imm.values()][0]
+                    f.create_dataset("step_size", data=hmc_ss, dtype="f")
+                    grp_imm = f.create_group("inverse_mass_matrix")
+                    for i, k in enumerate(imm_keys):
+                        grp_imm.create_dataset(k, data=imm_vals[i], dtype="f")
 
         # at this point warmup info is expected to exist
         n_iter_completed = 0
