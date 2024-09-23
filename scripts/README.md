@@ -5,7 +5,7 @@
 This script isn't for analysis purposes, I found that it was useful to have an easy way to compute a single wprp measurement for plotting or testing purposes.
 
 With this script, wprp can be computed either with randomized parameters, or with a specific parameter set.
-If no specific parameter set is provided, the script will generate randomized parameters according to the seed and perturbation limit provided (or defaults or none are provided).
+If no specific parameter set is provided, the script will generate randomized parameters according to the seed and perturbation limit provided (or defaults if none are provided).
 If a parameter set is provided, any randomization arguments are ignored.
 
 We have a few command line options:
@@ -22,7 +22,7 @@ We have a few command line options:
 * `-t`, `--theta`:
     Filepath to hdf5 file that stores model parameters at which to compute wprp. Defaults to model defaults. Array should be accessible at `f["theta"][...]`.
 * `-p`, `--perturbation-limit`:
-    Percentage limit to perturb parameters by when doing a randomized computation. Providing `--theta` will override this argument and wprp will be compute based on `--theta`.
+    Percentage limit to perturb parameters by when doing a randomized computation. Providing `--theta` will override this argument and wprp will be compute based on `--theta`. This is mainly for testing and demo purposes.
 * `-s`, `--perturbation-seed`:
     Numpy randomization seed to use for parameter randomization. Providing `--theta` will override this argument and any provided seed will be ignored.
 * `-o`, `--outdir`:
@@ -48,8 +48,6 @@ Command line options:
     Lower limit mass bin for selection function. Defaults to 10.6
 * `--mass-bin-high`:
     Upper limit mass bin for selection function. Defaults to 100.0
-* `-r`, `--rpbins`:
-    Filepath to `.npy` file that stores radial bins for wprp. Defaults to "watson-like" bins.
 * `-t`, `--theta-init`:
     Filepath to hdf5 file that stores initial parameter set. Defaults to model defaults. If provided, this should be a flat hdf5 file with field "theta".
 * `-o`, `--outdir`:
@@ -82,7 +80,7 @@ Command line options:
 * `--halo-file`:
     Path to the Bolshoi halo catalog. Defaults to my data directory on Polaris.
 * `--particle-file`:
-    Path to the Bolshoi particle catalog. Default to my data directory on Polaris.
+    Path to the Bolshoi particle catalog. Defaults to my data directory on Polaris.
 * `-w`, `--wprp`:
     Filepath to hdf5 file that stores the "goal" wprp measurement. Required. Should be a flat hdf5 file with fields "wprp", "wprp_error" and "rpbins"
 * `--mass-bin-low`:
@@ -101,7 +99,7 @@ Command line options:
     Number of HMC iterations to perform. Default is 1000.
 * `--hmc-nwarmup`:
     Number of warmup iterations to perform. Default is 500.
-* `-f`, `--checkpoint-frequench`
+* `-f`, `--checkpoint-frequency`
     Frequency of checkpointing HMC. Default is 100 iterations.
 
 Outputs:
