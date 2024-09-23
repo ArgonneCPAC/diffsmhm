@@ -118,12 +118,13 @@ if __name__ == "__main__":
                                                 1+args.perturbation_limit,
                                                 n_params)
     theta = theta_default * parameter_perturbations
+    if args.theta is not None:
+        with h5py.File(args.theta, "r") as f:
+            theta = f["theta"][...].astype(np.float64)
 
     rpbins = cp.logspace(-1, 1.3, 16, dtype=np.float64)
-    with h5py.File(args.theta, "r") as f:
-        if args.theta is not None:
-            theta = f["theta"][...].astype(np.float64)
-        if args.rpbins is not None:
+    if args.rpbins is not None:
+        with h5py.File(args.rpbins, "r") as f:
             rpbins = f["rpbins"][...].astype(np.float64)
 
     if rpbins[0] > 0:
