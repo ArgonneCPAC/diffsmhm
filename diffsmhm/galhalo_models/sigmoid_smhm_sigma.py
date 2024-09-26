@@ -20,10 +20,10 @@ DEFAULT_PARAM_VALUES = OrderedDict(
 )
 
 PARAM_BOUNDS = OrderedDict(
-    smhm_sigma_low=(0.1, 0.4),
-    smhm_sigma_high=(0.1, 0.4),
-    smhm_sigma_logm_pivot=(11.0, 13.0),
-    smhm_sigma_logm_width=(0.01, 0.2),
+    smhm_sigma_low=(-0.2, 0.6),
+    smhm_sigma_high=(-0.2, 0.4),
+    smhm_sigma_logm_pivot=(11.0, 14.0),
+    smhm_sigma_logm_width=(0.01, 0.4),
 )
 
 
