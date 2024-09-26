@@ -22,9 +22,9 @@ DEFAULT_PARAM_VALUES = OrderedDict(
 PARAM_BOUNDS = OrderedDict(
     satmerg_logmhost_crit=(12, 15),
     satmerg_logmhost_k=(0, 10),
-    satmerg_logvr_crit_dwarfs=(-2, 0),
+    satmerg_logvr_crit_dwarfs=(-2, 1),
     satmerg_logvr_crit_clusters=(-2, 0),
-    satmerg_logvr_k=(0, 10),
+    satmerg_logvr_k=(0, 11),
 )
 
 
