@@ -21,11 +21,11 @@ DEFAULT_PARAM_VALUES = OrderedDict(
 )
 
 PARAM_BOUNDS = OrderedDict(
-    smhm_logm_crit=(10.5, 12.5),
-    smhm_ratio_logm_crit=(-2.5, -0.5),
-    smhm_k_logm=(0, 2),
-    smhm_lowm_index=(1.5, 3.5),
-    smhm_highm_index=(0.1, 2),
+    smhm_logm_crit=(10.5, 13.5),
+    smhm_ratio_logm_crit=(-3.5, -0.5),
+    smhm_k_logm=(0, 3),
+    smhm_lowm_index=(1.5, 4),
+    smhm_highm_index=(-0.1, 2),
 )
 
 
