@@ -23,17 +23,17 @@ module use /soft/modulefiles
 module load conda
 conda activate diffsmhm
 
-#module load cudatoolkit-standalone/12.5.0
-
 cd $PBS_O_WORKDIR
 
 # relative from the diffsmhm/scripts dir
 WPRP_FILE="inputs_watson/bin10.2/wprp_10.2.hdf5"
 MASS_BIN_LOW="10.2"
 
-ADAM_A=0.01
 OUTDIR="outputs_watson/bin10.2/"
+THETA_FILE="outputs_watson/bin10.2/theta_opt.hdf5"
+
+ADAM_A=0.001
 
 mpiexec -np ${NTOTRANKS} --ppn ${NRANKS_PER_NODE}:node --depth=${NDEPTH} --cpu-bind depth \
-    ./set_gpu_affinity.sh python fit_wprp_all.py -w $WPRP_FILE --mass-bin-low $MASS_BIN_LOW \
-    --adam_a $ADAM_A --o $OUTDIR
+    python fit_wprp_all.py -w $WPRP_FILE --mass-bin-low $MASS_BIN_LOW \
+    --adam-a $ADAM_A --o $OUTDIR -t $THETA_FILE
