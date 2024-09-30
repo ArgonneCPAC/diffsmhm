@@ -1,4 +1,5 @@
 import argparse
+import h5py
 
 from collections import OrderedDict
 
@@ -55,14 +56,9 @@ if __name__ == "__main__":
         default="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
     )
     parser.add_argument(
-        "-w", "--wprp",
+        "-w", "--wprp-file",
         type=str,
         required=True
-    )
-    parser.add_argument(
-        "-e", "--wprp-error",
-        type=str,
-        default=None
     )
     parser.add_argument(
         "--mass-bin-low",
@@ -73,11 +69,6 @@ if __name__ == "__main__":
         "--mass-bin-high",
         type=float,
         default=100.0
-    )
-    parser.add_argument(
-        "-r", "--rpbins",
-        type=str,
-        default=None
     )
     parser.add_argument(
         "-t", "--theta-init",
@@ -134,20 +125,19 @@ if __name__ == "__main__":
 
     wprp_info = {}
     if RANK == 0:
-        wprp_goal = np.load(args.wprp)
+        with h5py.File(args.wprp_file, "r") as f:
+            wprp_goal = f["wprp"][...].astype(np.float64)
+
+            rpbins = f["rpbins"][...].astype(np.float64)
+            if rpbins[0] != 0:
+                rpbins = np.concatenate([np.array([0.0]), rpbins], dtype=np.float64)
+
+            # this is left optional for demo/testing, really you should provide this
+            wprp_err = 0.1 * abs(wprp_goal)
+            if "wprp_error" in f.keys():
+                wprp_err = f["wprp_error"][...].astype(np.float64)
+
         print("wprp goal:", wprp_goal)
-
-        # this is left optional for the demo, really you should provide this
-        wprp_err = 0.1 * wprp_goal
-        if args.wprp_error is not None:
-            wprp_err = np.load(args.wprp_error)
-
-        # default rpbins is roughly watson rpbins
-        rpbins = np.logspace(-1, 1.3, 16, dtype=np.float64)
-        if args.rpbins is not None:
-            rpbins = np.load(args.rpbins)
-        if rpbins[0] != 0:
-            rpbins = np.concatenate([np.array([0.0]), rpbins], dtype=np.float64)
 
         assert len(wprp_goal) == len(rpbins) - 2
         wprp_info = {
@@ -155,6 +145,7 @@ if __name__ == "__main__":
                         "wprp_err": wprp_err,
                         "rpbins": rpbins
         }
+
     wprp_info = COMM.bcast(wprp_info, root=0)
     wprp_goal = wprp_info["wprp"]
     wprp_err = wprp_info["wprp_err"]
@@ -177,7 +168,8 @@ if __name__ == "__main__":
 
     theta_init = np.copy(theta_default)
     if args.theta_init is not None:
-        theta_init = np.load(args.theta_init)
+        with h5py.File(args.theta_init, "r") as f:
+            theta_init = f["theta"][...].astype(np.float64)
 
     n_params = len(theta_init)
     n_rpbins = len(rpbins) - 2
@@ -349,7 +341,7 @@ if __name__ == "__main__":
                 idx_to_deposit=idx_to_deposit,
                 mass_bin_low=mass_bin_edges[0],
                 mass_bin_high=mass_bin_edges[1],
-                theta=theta_init
+                theta=theta_default
     )
 
     w_list = []
@@ -413,14 +405,14 @@ if __name__ == "__main__":
         # figure for wprp optimization
         fig = plt.figure(figsize=(10, 8), facecolor="w")
 
-        plt.plot(rpbins, wprp_init * rpbins, linewidth=3, c="tab:blue")
-        plt.plot(rpbins, wprp_final * rpbins, linewidth=2, c="tab:orange")
-        plt.plot(rpbins, wprp_goal * rpbins, linewidth=1, c="k")
+        plt.plot(rpbins, wprp_init * rpbins, marker="o", markersize=10, c="tab:blue")
+        plt.plot(rpbins, wprp_final * rpbins, marker="o", markersize=10, c="tab:orange")
+        plt.errorbar(rpbins, wprp_goal * rpbins, wprp_err, c="k", capsize=5, marker="s")
 
         plt.xlabel("rp", fontsize=16)
         plt.ylabel("rp wp(rp)", fontsize=16)
 
-        plt.legend(["start params", "opt params", "goal"])
+        plt.legend(["default params", "opt params", "goal"])
 
         plt.xscale("log")
 
@@ -437,4 +429,6 @@ if __name__ == "__main__":
         plt.savefig(outdir+"fig_wprp_all_error.png")
 
         # also save the final theta
-        np.save(outdir+"theta_opt.npy", theta_opt)
+        fpath = outdir+"theta_opt.hdf5"
+        with h5py.File(fpath, "w") as f:
+            theta_data = f.create_dataset("theta", data=theta_opt, dtype="f")

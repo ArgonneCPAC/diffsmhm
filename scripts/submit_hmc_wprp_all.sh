@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
-#PBS -N wprp_fit
-#PBS -l select=10:system=polaris
+#PBS -N wprp_hmc
+#PBS -l select=50:system=polaris
 #PBS -l place=scatter
 #PBS -l walltime=1:00:00
 #PBS -l filesystems=home
@@ -32,8 +32,12 @@ MASS_BIN_LOW="10.2"
 OUTDIR="outputs_watson/bin10.2/"
 THETA_FILE="outputs_watson/bin10.2/theta_opt.hdf5"
 
-ADAM_A=0.001
+PRIOR_WIDTH=0.2
+
+N_WU_ITER=500
+N_SAMPLE_ITER=1000
 
 mpiexec -np ${NTOTRANKS} --ppn ${NRANKS_PER_NODE}:node --depth=${NDEPTH} --cpu-bind depth \
-    python fit_wprp_all.py -w $WPRP_FILE --mass-bin-low $MASS_BIN_LOW \
-    --adam-a $ADAM_A --o $OUTDIR -t $THETA_FILE
+    python hmc_wprp_all.py -w $WPRP_FILE --mass-bin-low $MASS_BIN_LOW \
+    -o $OUTDIR -t $THETA_FILE -f 100 --hmc-niter $N_SAMPLE_ITER --hmc-nwarmup $N_WU_ITER \
+    --prior-width $PRIOR_WIDTH

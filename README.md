@@ -20,8 +20,10 @@ Also, you'll want to grab the `set_affinity_gpu_polaris.sh` script from the Pola
 This assigns each rank a single GPU, which greatly improves runtime in this demo case of running 8 MPI ranks across 4 GPUs.
 In general, this code supports multiple GPUs per MPI rank, but for the demo use the affinity script.
 
-The optimization and inference scripts we use here take .npy files as input, so if using different
+The optimization and inference scripts we use here take hdf5 files as input, so if using different
 data you'll want to make sure you have wprp, wprp error, and radial bins in that format.
+The optimization and inference codes expect 1 hdf5 file with keys "wprp", "rpbins", and "wprp_error".
+Outputs saving model parameters and HMC output will each be another hdf5 file; one for the parameters theta and one for the HMC adaptation and chain info.
 
 ## Create "goal" data
 First, we generate the "goal" wprp measurement using `scripts/compute_one_wprp.py`:
@@ -30,20 +32,20 @@ mpirun -np 8 ./set_affinity_gpu_polaris.sh python compute_one_wprp.py --halo-fil
 ```
 
 This will generate a single wprp measurement with a random set of parameters that vary by +/- 2% from the default set, and use a host mass cut of 14.6 when loading the catalog to greatly decrease the number of objects.
-The script will save two files which we'll use in the next steps: `wprp_single.npy` and `rpbins_single.npy`.
+The script will save an hdf5 file which we'll use in the next steps: `wprp_single.hdf5`.
 
 ## Optimization
 Next, we can run an optimization to find a starting point for HMC.
 This will use the script `scripts/fit_wprp_all.py` like so
 ```
-mpirun -np 8 ./set_affinity_gpu_polaris.sh python fit_wprp_all.py -w wprp_single.npy -r rpbins_single.npy --halo-file [PATH_TO_HALOS] --particle-file [PATH_TO_PARTICLES] ---hmcut 14.6 --adam-tmax 10 --adam-a 0.005
+mpirun -np 8 ./set_affinity_gpu_polaris.sh python fit_wprp_all.py -w wprp_single.hdf5 --halo-file [PATH_TO_HALOS] --particle-file [PATH_TO_PARTICLES] --hmcut 14.6 --adam-tmax 5 --adam-a 0.005
 ```
 
 The above will run the Adam optimizer for 10 minutes on the SMHM model starting at the default parameters and with our previously generated wprp as the goal value. 
-I found these parameters to produce a reasonable fit, but you can of course tweak them if you like.
+I found these parameters to produce a good fit, but you can of course tweak them if you like.
 The script generates output every 100 iterations, printing the iteration number, the error of that iteration, and the percent error for each wprp radial bin.
 Additionally, the script will generate two figures, `fig_wprp_all_error.png` and `fig_wprp_all_wprp.png` which can be used to confirm that the optimization did actually work.
-We have one output file, `theta_opt.npy`, which we will use as our starting point for the HMC code.
+We have one output file, `theta_opt.hdf5`, which we will use as our starting point for the HMC code.
 
 ## Inference
 
@@ -51,11 +53,13 @@ Finally, we can run HMC on this problem using the starting position obtained thr
 
 Run
 ```
-mpirun -np 8 ./set_affinity_gpu_polaris.sh python hmc_wprp_all.py -w wprp_single.npy -r rpbins_single.npy --halo-file [PATH_TO_HALOS] --particle-file [PATH_TO_PARTICLES] -t `theta_opt.npy` --hmcut 14.6 --hmc-niter 500 --hmc-nwarmup 250 --prior-width 0.01
+mpirun -np 8 ./set_affinity_gpu_polaris.sh python hmc_wprp_all.py -w wprp_single.hdf5 --halo-file [PATH_TO_HALOS] --particle-file [PATH_TO_PARTICLES] -t theta_opt.hdf5 --hmcut 14.6 --hmc-niter 500 -f -1 --hmc-nwarmup 250 --prior-width 0.01
 ```
 For me on a single Polaris node, this script took just under 15 minutes to run.
 
 The script outputs a csv file of the HMC positions and creates a corner plot, `corner_hmc.py`.
+There is also a hdf5 file called `checkpoint_hmc.hdf5` that stores the warmup info and chain state in case you want to load the chain and do more sampling later.
+The above command turns off checkpointing during sampling, notice the input `-f -1`, so only saves the state after completion.
 
 # Running Other Code
 ## Scaling

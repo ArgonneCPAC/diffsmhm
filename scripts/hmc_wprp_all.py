@@ -1,4 +1,6 @@
 import argparse
+import h5py
+import os
 
 import cupy as cp
 import numpy as np
@@ -130,14 +132,9 @@ if __name__ == "__main__":
         default="/home/jwick/data/hlist_1.00231.particles.halotools_v0p4.hdf5"
     )
     parser.add_argument(
-        "-w", "--wprp",
+        "-w", "--wprp-file",
         type=str,
         required=True
-    )
-    parser.add_argument(
-        "-e", "--wprp_error",
-        type=str,
-        default=None
     )
     parser.add_argument(
         "--mass-bin-low",
@@ -150,12 +147,7 @@ if __name__ == "__main__":
         default=100.0
     )
     parser.add_argument(
-        "-r", "--rpbins",
-        type=str,
-        default=None
-    )
-    parser.add_argument(
-        "-t", "--theta-init",
+        "-t", "--theta-prior",
         type=str,
         default=None
     )
@@ -184,6 +176,16 @@ if __name__ == "__main__":
         type=int,
         default=500
     )
+    parser.add_argument(
+        "-f", "--checkpoint-frequency",
+        type=int,
+        default=100
+    )
+    parser.add_argument(
+        "-c", "--hmc-checkpoint",
+        type=str,
+        default=None
+    )
     args = parser.parse_args()
 
     # 1) setup
@@ -191,20 +193,24 @@ if __name__ == "__main__":
     if outdir[-1] != "/":
         outdir.append("/")
 
+    theta_default = get_default_params()
+    lower_bounds, upper_bounds = get_param_bounds()
+    param_names = get_param_names()
+
     wprp_info = {}
     if RANK == 0:
-        wprp_goal = np.load(args.wprp)
+        # load wprp, error, rpbins
+        with h5py.File(args.wprp_file, "r") as f:
+            wprp_goal = f["wprp"][...].astype(np.float64)
 
-        # optional for purposes of the demo, really you should provide this
-        wprp_err = 0.1 * wprp_goal
-        if args.wprp_error is not None:
-            wprp_err = np.load(args.wprp_error)
+            rpbins = f["rpbins"][...].astype(np.float64)
+            if rpbins[0] != 0:
+                rpbins = np.concatenate([np.array([0.0]), rpbins], dtype=np.float64)
 
-        rpbins = np.logspace(-1, 1.3, 16, dtype=np.float64)
-        if args.rpbins is not None:
-            rpbins = np.load(args.rpbins)
-        if rpbins[0] > 0:
-            rpbins = np.concatenate([np.array([0.0]), rpbins], dtype=np.float64)
+            # optional for purposes of the demo, really you should provide this
+            wprp_err = 0.1 * wprp_goal
+            if "wprp_error" in f.keys():
+                wprp_err = f["wprp_error"][...].astype(np.float64)
 
         assert len(wprp_goal) == len(rpbins) - 2
         wprp_info = {
@@ -212,14 +218,37 @@ if __name__ == "__main__":
                         "wprp_err": wprp_err,
                         "rpbins": rpbins
         }
+
+        # load hmc info if a checkpoint is provided
+        do_hmc_adapt = args.hmc_nwarmup > 0
+        hmc_ss = None
+        hmc_imm = None  # will be a dictionary
+        hmc_key = jax.random.PRNGKey(42)
+        if args.hmc_checkpoint is not None:
+            hmc_imm = {}
+            with h5py.File(args.hmc_checkpoint, "r") as f:
+                hmc_ss = f["step_size"][...]
+
+                # saving the PRNGKey is how the docs suggest to resume chains
+                # https://num.pyro.ai/en/stable/mcmc.html; post_warmup_state
+                hmc_key = jax.numpy.array([
+                            f["checkpoint_prng/0"][...],
+                            f["checkpoint_prng/1"][...]], dtype=np.uint32
+                )
+
+                # the format for this is apparently a tuple of names as the key
+                # and a single array as the value
+                params = tuple(param_names)
+                vallist = []
+                for n in param_names:
+                    retrieval_str = "inverse_mass_matrix/"+n
+                    vallist.append(f[retrieval_str][...])
+            hmc_imm = {params: np.array(vallist, dtype=np.float64)}
+
     wprp_info = COMM.bcast(wprp_info, root=0)
     wprp_goal = wprp_info["wprp"]
     wprp_err = wprp_info["wprp_err"]
     rpbins = wprp_info["rpbins"]
-
-    theta_default = get_default_params()
-    lower_bounds, upper_bounds = get_param_bounds()
-    param_names = get_param_names()
 
     # load bolshoi data
     box_length = 250.0  # Mpc
@@ -230,10 +259,11 @@ if __name__ == "__main__":
     mass_bin_edges = np.array([args.mass_bin_low, args.mass_bin_high], dtype=np.float64)
 
     theta_init = np.copy(theta_default)
-    if args.theta_init is not None:
-        theta_init = np.load(args.theta_init)
+    if args.theta_prior is not None:
+        with h5py.File(args.theta_prior, "r") as f:
+            theta_init = f["theta"][...].astype(np.float64)
     if RANK == 0:
-        print("theta init:", theta_init, flush=True)
+        print("theta prior:", theta_init, flush=True)
 
     n_params = len(theta_init)
     n_rpbins = len(rpbins) - 2
@@ -395,24 +425,96 @@ if __name__ == "__main__":
                     boxsize=box_length,
                     kernel_func=wprp_mpi_kernel_cuda
             )
+    # Rank 0 does HMC management
     else:
-        nuts_kernel = NUTS(model)
         num_warmup = args.hmc_nwarmup
         num_samples = args.hmc_niter
-        mcmc = MCMC(nuts_kernel, num_warmup=num_warmup, num_samples=num_samples,
-                    num_chains=1)
-        mcmc.run(jax.random.PRNGKey(42))
-        mcmc.print_summary()
+        checkpoint_freq = args.checkpoint_frequency
+        if checkpoint_freq < 0:
+            checkpoint_freq = int(1e9)
+        fpath_checkpoint = outdir+"checkpoint_hmc.hdf5"
+        fpath_positions = outdir+"positions.csv"
+
+        # if warmup to be done
+        n_warmup_iter_completed = 0
+
+        n_warmup_done = 0
+        n_sample_done = 0
+        while n_warmup_done < num_warmup or n_sample_done < num_samples:
+            # decide number of warmup iterations for this checkpoint stage
+            n_stage_wu = checkpoint_freq
+            if num_warmup - n_warmup_done < checkpoint_freq:
+                n_stage_wu = num_warmup - n_warmup_done
+            do_adapt = n_stage_wu > 0
+            # decide number of sample iterations for this checkpoint stage
+            n_stage_s = checkpoint_freq - n_stage_wu
+            if num_samples - n_sample_done < checkpoint_freq:
+                n_stage_s = num_samples - n_sample_done
+
+            # run this warmup stage; start with existing step & mass if available
+            if hmc_ss is None:
+                nuts_kernel = NUTS(model)
+            else:
+                nuts_kernel = NUTS(model, step_size=hmc_ss,
+                                   inverse_mass_matrix=hmc_imm,
+                                   adapt_mass_matrix=do_adapt,
+                                   adapt_step_size=do_adapt)
+
+            # `num_samples` below cannot be zero so make sure this is >= 1
+            if n_stage_s == 0:
+                n_stage_s = 1
+            mcmc = MCMC(nuts_kernel, num_warmup=n_stage_wu,
+                        num_samples=n_stage_s, num_chains=1)
+            mcmc.run(hmc_key)
+
+            n_warmup_done += n_stage_wu
+            n_sample_done += n_stage_s
+
+            # save ss, IMM, and rng key state
+            hmc_ss = mcmc.last_state.adapt_state.step_size
+            hmc_imm = mcmc.last_state.adapt_state.inverse_mass_matrix
+            hmc_key = mcmc.last_state.rng_key
+
+            imm_keys = [*hmc_imm][0]
+            imm_vals = [*hmc_imm.values()][0]
+            # need to check if file exists bc writing / editing are different
+            if os.path.isfile(fpath_checkpoint):
+                with h5py.File(fpath_checkpoint, "r+") as f:
+                    # save chain prng state
+                    f["checkpoint_prng/0"][...] = hmc_key[0]
+                    f["checkpoint_prng/1"][...] = hmc_key[1]
+
+                    # save warmup info
+                    f["step_size"][...] = hmc_ss
+                    for i, k in enumerate(imm_keys):
+                        f["inverse_mass_matrix/"+k][...] = imm_vals[i]
+            else:
+                with h5py.File(fpath_checkpoint, "w") as f:
+                    # save chain prng state
+                    grp_pos = f.create_group("checkpoint_prng")
+                    grp_pos.create_dataset("0", data=hmc_key[0], dtype=np.uint32)
+                    grp_pos.create_dataset("1", data=hmc_key[1], dtype=np.uint32)
+
+                    # save warmup info
+                    f.create_dataset("step_size", data=hmc_ss, dtype="f")
+                    grp_imm = f.create_group("inverse_mass_matrix")
+                    for i, k in enumerate(imm_keys):
+                        grp_imm.create_dataset(k, data=imm_vals[i], dtype="f")
+
+            # if we took samples, update or create the csv of positions
+            if n_stage_s > 1:
+                mcmc_positions = mcmc.get_samples()
+                positions_df = pd.DataFrame.from_dict(mcmc_positions)
+                if os.path.isfile(fpath_positions):
+                    positions_df.to_csv(fpath_positions, mode="a",
+                                        header=False, index=False)
+                else:
+                    positions_df.to_csv(fpath_positions, mode="w",
+                                        header=True, index=False)
 
         # we're done with HMC, broadcast the stop condition
         stop = -1 * np.ones_like(theta_init)
         COMM.Bcast(stop, root=0)
-
-        # let's export
-        fpath_positions = outdir+"positions.csv"
-        mcmc_positions = mcmc.get_samples()
-        positions_df = pd.DataFrame.from_dict(mcmc_positions)
-        positions_df.to_csv(fpath_positions, mode="w", header=True, index=False)
 
         # and make a figure
         # less specific labels bc the full names are a bit too long for the figure
@@ -422,23 +524,25 @@ if __name__ == "__main__":
             "merge_0", "merge_1", "merge_2", "merge_3", "merge_4"
         ]
 
+        # reload the csv of positions so that we have any prior runs too
+        mcmc_positions = pd.read_csv(fpath_positions)
         positions_np = np.vstack([
-                        mcmc_positions[param_names[0]],
-                        mcmc_positions[param_names[1]],
-                        mcmc_positions[param_names[2]],
-                        mcmc_positions[param_names[3]],
-                        mcmc_positions[param_names[4]],
+                        mcmc_positions[param_names[0]].to_numpy(),
+                        mcmc_positions[param_names[1]].to_numpy(),
+                        mcmc_positions[param_names[2]].to_numpy(),
+                        mcmc_positions[param_names[3]].to_numpy(),
+                        mcmc_positions[param_names[4]].to_numpy(),
 
-                        mcmc_positions[param_names[5]],
-                        mcmc_positions[param_names[6]],
-                        mcmc_positions[param_names[7]],
-                        mcmc_positions[param_names[8]],
+                        mcmc_positions[param_names[5]].to_numpy(),
+                        mcmc_positions[param_names[6]].to_numpy(),
+                        mcmc_positions[param_names[7]].to_numpy(),
+                        mcmc_positions[param_names[8]].to_numpy(),
 
-                        mcmc_positions[param_names[9]],
-                        mcmc_positions[param_names[10]],
-                        mcmc_positions[param_names[11]],
-                        mcmc_positions[param_names[12]],
-                        mcmc_positions[param_names[13]]
+                        mcmc_positions[param_names[9]].to_numpy(),
+                        mcmc_positions[param_names[10]].to_numpy(),
+                        mcmc_positions[param_names[11]].to_numpy(),
+                        mcmc_positions[param_names[12]].to_numpy(),
+                        mcmc_positions[param_names[13]].to_numpy()
         ]).T
 
         fig = corner.corner(

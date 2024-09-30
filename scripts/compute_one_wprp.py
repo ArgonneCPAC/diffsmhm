@@ -1,4 +1,5 @@
 import argparse
+import h5py
 
 import numpy as np
 import cupy as cp
@@ -106,19 +107,10 @@ if __name__ == "__main__":
     # jax wants an array for these when we do weights
     mass_bin_edges = np.array([args.mass_bin_low, args.mass_bin_high], dtype=np.float64)
 
-    rpbins = cp.logspace(-1, 1.3, 16, dtype=np.float64)
-    if args.rpbins is not None:
-        rpbins = np.load(args.rpbins)
-    if rpbins[0] > 0:
-        rpbins = cp.concatenate([cp.array([0]), rpbins])
-
     zmax = 20.0
 
     theta_default = get_default_params()
-
     n_params = len(theta_default)
-    n_rpbins = len(rpbins)-1
-    n_devices = jax.local_device_count()
 
     # perturb theta unless file to load is specified
     np.random.seed(args.perturbation_seed)
@@ -127,9 +119,21 @@ if __name__ == "__main__":
                                                 n_params)
     theta = theta_default * parameter_perturbations
     if args.theta is not None:
-        theta = np.load(args.theta)
+        with h5py.File(args.theta, "r") as f:
+            theta = f["theta"][...].astype(np.float64)
+
+    rpbins = cp.logspace(-1, 1.3, 16, dtype=np.float64)
+    if args.rpbins is not None:
+        with h5py.File(args.rpbins, "r") as f:
+            rpbins = f["rpbins"][...].astype(np.float64)
+
+    if rpbins[0] > 0:
+        rpbins = cp.concatenate([cp.array([0]), rpbins])
     if RANK == 0:
         print("theta:", theta, flush=True)
+
+    n_rpbins = len(rpbins)-1
+    n_devices = jax.local_device_count()
 
     idx_to_deposit = _calculate_indx_to_deposit(halos["upid"], halos["halo_id"])
     idx_to_deposit = jnp.copy(idx_to_deposit)
@@ -185,8 +189,8 @@ if __name__ == "__main__":
         print("WPRP:", wprp)
 
         # save to file
-        fpath_wprp = outdir+"wprp_single.npy"
-        fpath_rpbins = outdir+"rpbins_single.npy"
-
-        np.save(fpath_wprp, wprp)
-        np.save(fpath_rpbins, rpbins)
+        rpbins = np.array(rpbins.get(), dtype=np.float64)
+        fpath = outdir+"wprp_single.hdf5"
+        with h5py.File(fpath, "w") as f:
+            wprp_data = f.create_dataset("wprp", data=wprp, dtype=np.float64)
+            rpbin_data = f.create_dataset("rpbins", data=rpbins, dtype=np.float64)
