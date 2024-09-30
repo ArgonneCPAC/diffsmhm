@@ -34,6 +34,7 @@ from diffsmhm.analysis.util import get_default_params
 
 
 if __name__ == "__main__":
+    datadir = "/eagle/darkskyml_aesp/bolshoi_data_diffsmhm/"
     parser = argparse.ArgumentParser(
         prog="scale_bolshoi_copy.py",
         description="Time wprp computations over one or more Bolshoi volumes."
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--halo-file",
         type=str,
-        default="/home/jwick/data/value_added_orphan_complete_bpl_1.002310.h5"
+        default=datadir + "value_added_orphan_complete_bpl_1.002310.h5"
     )
     parser.add_argument(
         "--hmcut",
